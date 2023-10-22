@@ -20,7 +20,7 @@ int main()
 
     CreateAddress(address, 127, 0, 0, 1, 30001);
 
-    char input[256];
+    char input[100];
 
     while (1) { // Infinite loop
         printf("Enter a string (press Enter to send or 'q' to quit): ");
@@ -45,5 +45,6 @@ int main()
         SendPacket(socket, address, (void*)input, sizeof(input));
     }
 
-    
+    DestroySocket(socket);
+    ShutdownSockets();
 }
