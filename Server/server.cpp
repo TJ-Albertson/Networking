@@ -28,6 +28,39 @@ int main()
 
     printf("[SERVER] Server started listening on port %d\n", port);
 
+
+    uint32_t local_sequence;
+    uint32_t remote_sequence;
+
+    // on pack recieve
+    local_sequence++;
+    
+    /*
+    if ( packet.sequence > remote_sequence)
+    {
+        remote_sequence = packet.sequence;
+    }
+
+    void SendPacket() {
+        Packet packet;
+
+        packet.sequence = local_sequence;
+        packet.ack = remote_sequence;
+
+        uint32_t ack_bitfield = GetAcks(queue);
+    }
+
+    uint32_t GetAcks(Queue queue)
+    {
+        uint32_t ack_bitfield;
+    
+        for (int i; i < MAX_QUEUE_SIZE; i++) {
+            ack_bitfield >> queue(i);
+        }
+    }
+    
+    */
+
     while (true) {
         Address sender;
 
@@ -51,11 +84,11 @@ int main()
 
         float deltaTime = 0.000001f;
 
+        // Increase time for all clients
         for (auto& pair : clients) {
             pair.second -= deltaTime;
-            //printf("%s: %f", pair.first, pair.second);
         }
-
+    
         if (sender.address <= 0 || sender.address != -858993460) {
             // Check ip address
             if (clients.find(sender.address) != clients.end()) {
@@ -73,12 +106,12 @@ int main()
              printf("[Client %d] %d %s\n", sender.address, prefix, data);
         }
 
+        // Disconnect old clients
         for (auto it = clients.begin(); it != clients.end();) {
             if (it->second <= 0.0f) {
                 printf("[SERVER] Client at ");
                 DecodePrintAddress(it->first);
                 printf(" disconnected\n", it->first);
-
 
                 it = clients.erase(it); // Advance the iterator after erasing
             } else {
@@ -86,7 +119,6 @@ int main()
             }
         }
         
-
         //printf("%d buffer: %s\n", prefix, data);
         // process packet
     }
