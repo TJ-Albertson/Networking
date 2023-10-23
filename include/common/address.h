@@ -39,7 +39,7 @@ typedef struct Address {
     unsigned char d;
 } Address;
 
-
+#include <iostream>
 int CreateAddress(Address& c_address, unsigned char a, unsigned char b, unsigned char c, unsigned char d, unsigned short port)
 {
     unsigned int address = (a << 24) | (b << 16) | (c << 8) | d;
@@ -59,6 +59,16 @@ int CreateAddress(Address& c_address, unsigned char a, unsigned char b, unsigned
     c_address.d = d;
 
     return 1;
+}
+
+void DecodePrintAddress(unsigned int address) {
+
+    unsigned char a = (address >> 24) & 0xFF;
+    unsigned char b = (address >> 16) & 0xFF;
+    unsigned char c = (address >> 8) & 0xFF;
+    unsigned char d = address & 0xFF;
+
+    printf("%d.%d.%d.%d", static_cast<int>(a), static_cast<int>(b), static_cast<int>(c), static_cast<int>(d));
 }
 
 #endif

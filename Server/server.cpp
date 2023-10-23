@@ -49,32 +49,40 @@ int main()
 
 
 
-        float deltaTime = 0.00005f;
+        float deltaTime = 0.000001f;
+
+        for (auto& pair : clients) {
+            pair.second -= deltaTime;
+            //printf("%s: %f", pair.first, pair.second);
+        }
 
         if (sender.address <= 0 || sender.address != -858993460) {
-            //printf("sender.address %d\n", sender.address);
-
-            for (auto& pair : clients) {
-                pair.second -= deltaTime;
-            }
-
             // Check ip address
             if (clients.find(sender.address) != clients.end()) {
                 // Refresh time
                 clients[sender.address] = 10.0f;
             } else {
-                printf("[SERVER] Client at %u connected\n", sender.address);
+                printf("[SERVER] Client at ");
+                DecodePrintAddress(sender.address);
+                printf(" connected\n", sender.address);
+
                 clients[sender.address] = 10.0f;
-                memset(buffer, 0, sizeof(buffer));
+                //memset(buffer, 0, sizeof(buffer));
             }
 
-            for (auto it = clients.begin(); it != clients.end();) {
-                if (it->second <= 0.0f) {
-                    printf("[SERVER] Client at %u disconnected\n", it->first);
-                    it = clients.erase(it); // Advance the iterator after erasing
-                } else {
-                    ++it; // Move to the next element
-                }
+             printf("[Client %d] %d %s\n", sender.address, prefix, data);
+        }
+
+        for (auto it = clients.begin(); it != clients.end();) {
+            if (it->second <= 0.0f) {
+                printf("[SERVER] Client at ");
+                DecodePrintAddress(it->first);
+                printf(" disconnected\n", it->first);
+
+
+                it = clients.erase(it); // Advance the iterator after erasing
+            } else {
+                ++it; // Move to the next element
             }
         }
         
