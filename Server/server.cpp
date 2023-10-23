@@ -28,9 +28,7 @@ int main()
 
         uint32_t prefix;
         memcpy(&prefix, buffer, sizeof(uint32_t));
-
-        
-
+    
         buffer[255] = '\0'; // Null-terminate the received data.
 
         char* data = (char*)(buffer + sizeof(uint32_t));
