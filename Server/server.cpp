@@ -26,9 +26,17 @@ int main()
         if (!bytes_read)
             break;
 
+        uint32_t prefix;
+        memcpy(&prefix, buffer, sizeof(uint32_t));
+
+        
+
         buffer[255] = '\0'; // Null-terminate the received data.
+
+        char* data = (char*)(buffer + sizeof(uint32_t));
    
-        printf("buffer: %s\n", buffer);
+        printf("buffer: %s\n", data);
+        printf("prefix: %d\n", prefix);
         // process packet
     }
 }

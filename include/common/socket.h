@@ -2,6 +2,7 @@
 #define SOCKET_H
 
 #include <stdio.h>
+#include <stdint.h>
 
 #include "address.h"
 
@@ -105,9 +106,25 @@ void DestroySocket(SocketHandle& socket)
 
 bool SendPacket(SocketHandle handle, Address destination, void* data, int size)
 {
+    int newBufferSize = size + sizeof(uint32_t); // 4 bytes for the 32-bit integer
+    char* newDataBuffer = (char*)malloc(newBufferSize);
+
+    if (newDataBuffer == NULL) {
+        // Handle memory allocation error
+        printf("Failed to allocate memory for the packet.\n");
+        return false;
+    }
+
+    // Copy the 32-bit integer into the new buffer (prefix)
+    uint32_t prefix = 55;
+    memcpy(newDataBuffer, &prefix, sizeof(uint32_t));
+
+    // Copy the original data after the prefix
+    memcpy(newDataBuffer + sizeof(uint32_t), data, size);
+
     int sent_bytes = sendto(handle,
-        (const char*)data,
-        size,
+        newDataBuffer,
+        newBufferSize,
         0,
         (sockaddr*)&destination.sock_address,
         sizeof(sockaddr_in));
