@@ -33,6 +33,10 @@ typedef struct Address {
     unsigned int address;
     unsigned short port;
     sockaddr_in sock_address;
+    unsigned char a;
+    unsigned char b;
+    unsigned char c;
+    unsigned char d;
 } Address;
 
 
@@ -48,6 +52,11 @@ int CreateAddress(Address& c_address, unsigned char a, unsigned char b, unsigned
     c_address.address = address;
     c_address.port = port;
     c_address.sock_address = addr;
+
+    c_address.a = a;
+    c_address.b = b;
+    c_address.c = c;
+    c_address.d = d;
 
     return 1;
 }

@@ -129,7 +129,7 @@ bool SendPacket(SocketHandle handle, Address destination, void* data, int size)
         (sockaddr*)&destination.sock_address,
         sizeof(sockaddr_in));
 
-    if (sent_bytes != size) {
+    if (sent_bytes != newBufferSize) {
         printf("failed to send packet\n");
         return false;
     }
@@ -156,8 +156,9 @@ int RecievePackets(SocketHandle handle, Address& sender, const void* data, int s
         &fromLength);
 
     unsigned int from_address = ntohl(from.sin_addr.s_addr);
-
     unsigned int from_port = ntohs(from.sin_port);
+
+    sender.address = from_address;
 
     return 1;
     // process received packet
