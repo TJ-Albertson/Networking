@@ -13,16 +13,6 @@ typedef struct Buffer {
     int index;      // index of next byte to be read/written
 } Buffer;
 
-typedef struct BitReader {
-    Buffer buffer;
-    int bytes;
-} BitReader;
-
-typedef struct BitWriter {
-    Buffer buffer;
-    int bytes;
-} BitWriter;
-
 
 void WriteBits(Buffer& buffer, uint32_t value)
 {
@@ -116,65 +106,34 @@ struct PacketA {
 
     void Read(Buffer& buffer)
     {
-        ReadInteger(buffer, x);
-        ReadInteger(buffer, y);
-        ReadInteger(buffer, z);
+        x = ReadInteger(buffer);
+        y = ReadInteger(buffer);
+        z = ReadInteger(buffer);
     }
 };
 
-struct PacketA {
-    int x, y, z;
+void test() {
+    Buffer buffer;
 
-    template <typename Stream>
-    bool Serialize(Stream& stream)
-    {
-        serialize_bits(stream, x, 32);
-        serialize_bits(stream, y, 32);
-        serialize_bits(stream, z, 32);
-        return true;
-    }
-};
+    uint8_t data_buffer[256];
+    buffer.data = data_buffer;
 
+    buffer.size = 256;
+    int index = 0;
+    
+    PacketA packet;
 
+    packet.x = 14;
+    packet.y = 27;
+    packet.z = 75;
 
-struct PacketB {
-    int numElements;
-    int elements[MaxElements];
+    packet.Write(buffer);
 
-    void Write(Buffer& buffer)
-    {
-        WriteInteger(buffer, numElements);
-        for (int i = 0; i < numElements; ++i)
-            WriteInteger(buffer, elements[i]);
-    }
+    PacketA packet2;
+    
+    packet2.Read(buffer);
 
-    void Read(Buffer& buffer)
-    {
-        ReadInteger(buffer, numElements);
-        for (int i = 0; i < numElements; ++i)
-            ReadInteger(buffer, elements[i]);
-    }
-};
-
-struct PacketC {
-    bool x;
-    short y;
-    int z;
-
-    void Write(Buffer& buffer)
-    {
-        WriteChar(buffer, x);
-        WriteShort(buffer, y);
-        WriteInteger(buffer, z);
-    }
-
-    void Read(Buffer& buffer)
-    {
-        ReadByte(buffer, x);
-        ReadShort(buffer, y);
-        ReadInteger(buffer, z);
-    }
-
+}
 
 
 #endif

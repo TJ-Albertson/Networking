@@ -116,6 +116,20 @@ int main()
 
         float deltaTime = 0.000001f;
 
+
+
+
+        Buffer b_buffer;
+
+        const int bufferSize = 256;
+        b_buffer.data = buffer;
+        b_buffer.size = bufferSize;
+        b_buffer.index = 0;
+
+        PacketA packet;
+        packet.Read(b_buffer);
+
+
         // Increase time for all clients
         for (auto& pair : clients) {
             pair.second -= deltaTime;
@@ -134,9 +148,15 @@ int main()
                 clients[sender.address] = 10.0f;
             }
 
+            printf("[Client %d]\n", sender.address);
+            printf("    packet.x: %d\n", packet.x);
+            printf("    packet.y: %d\n", packet.y);
+            printf("    packet.z: %d\n", packet.z);
+            /*
             printf("[Client %d] %s\n", sender.address, data);
             printf("    protocol_id: %d\n", protocol_id);
             printf("    packet_type: %d\n", packet_type);
+            */
         }
 
         // Disconnect old clients

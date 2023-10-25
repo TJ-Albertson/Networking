@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #include "address.h"
+#include "packet.h"
 
 
 typedef int SocketHandle;
@@ -127,9 +128,27 @@ bool SendPacket(SocketHandle handle, Address destination, void* data, int size)
 
     memcpy(buffer + 5, data, size);
 
+
+
+
+    Buffer b_buffer;
+
+    const int bufferSize = 256;
+    uint8_t b_buffer_data[bufferSize];
+    b_buffer.data = b_buffer_data;
+    b_buffer.size = bufferSize;
+    b_buffer.index = 0;
+
+    PacketA packet;
+    packet.x = 14;
+    packet.y = 27;
+    packet.z = 75;
+
+    packet.Write(b_buffer);
+
     int sent_bytes = sendto(handle,
-        (const char*)buffer,
-        256,
+        (const char*)b_buffer.data,
+        b_buffer.size,
         0,
         (sockaddr*)&destination.sock_address,
         sizeof(sockaddr_in));
