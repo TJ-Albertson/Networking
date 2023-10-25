@@ -9,6 +9,8 @@
 
 typedef int SocketHandle;
 
+
+
 /*
 bool CreateSocket(Socket& socket);
 
@@ -104,32 +106,35 @@ void DestroySocket(SocketHandle& socket)
 #endif
 }
 
+
+const int MAX_PACKET_SIZE = 256;
+const int HEADER_SIZE = 4;
+const int PROTOCOL_ID = 57;
+
 bool SendPacket(SocketHandle handle, Address destination, void* data, int size)
 {
-    int newBufferSize = size + sizeof(uint32_t); // 4 bytes for the 32-bit integer
-    char* newDataBuffer = (char*)malloc(newBufferSize);
+    unsigned char buffer[256];
 
-    if (newDataBuffer == NULL) {
-        // Handle memory allocation error
-        printf("Failed to allocate memory for the packet.\n");
+    memcpy(buffer, &PROTOCOL_ID, 4);
+    
+    uint8_t packet_type = 1;
+    memcpy(buffer + 4, &packet_type, 1);
+
+    if (size > MAX_PACKET_SIZE - HEADER_SIZE) {
+        printf("Data too large\n");
         return false;
     }
 
-    // Copy the 32-bit integer into the new buffer (prefix)
-    uint32_t prefix = 55;
-    memcpy(newDataBuffer, &prefix, sizeof(uint32_t));
-
-    // Copy the original data after the prefix
-    memcpy(newDataBuffer + sizeof(uint32_t), data, size);
+    memcpy(buffer + 5, data, size);
 
     int sent_bytes = sendto(handle,
-        newDataBuffer,
-        newBufferSize,
+        (const char*)buffer,
+        256,
         0,
         (sockaddr*)&destination.sock_address,
         sizeof(sockaddr_in));
 
-    if (sent_bytes != newBufferSize) {
+    if (sent_bytes != 256) {
         printf("failed to send packet\n");
         return false;
     }
@@ -137,8 +142,6 @@ bool SendPacket(SocketHandle handle, Address destination, void* data, int size)
 
 int RecievePackets(SocketHandle handle, Address& sender, const void* data, int size)
 {
-    // unsigned char packet_data[256];
-
     unsigned int max_packet_size = size;
 
 #if PLATFORM == PLATFORM_WINDOWS
