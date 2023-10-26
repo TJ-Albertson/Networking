@@ -17,6 +17,15 @@ typedef struct {
     uint32_t* buffer;
 } BitPacker;
 
+typedef struct BitReader {
+    uint64_t scratch;
+    int scratch_bits;
+    int total_bits;
+    int num_bits_read;
+    int word_index;
+    uint32_t* buffer;
+} BitReader;
+
 void WriteBits(BitPacker* bp, uint32_t value, int num_bits)
 {
     bp->scratch |= ((uint64_t)value) << bp->scratch_bits;
@@ -29,6 +38,20 @@ void WriteBits(BitPacker* bp, uint32_t value, int num_bits)
     }
 }
 
+uint32_t ReadBits(BitReader* bp, int num_bits)
+{
+    if (bp->scratch_bits < num_bits) {
+        bp->scratch |= ((uint64_t)bp->buffer[bp->word_index++]) << bp->scratch_bits;
+        bp->scratch_bits += 32;
+    }
+
+    uint32_t value = (uint32_t)(bp->scratch & ((1ULL << num_bits) - 1));
+    bp->scratch >>= num_bits;
+    bp->scratch_bits -= num_bits;
+
+    return value;
+}
+
 void BitPacker_Flush(BitPacker* bp)
 {
     if (bp->scratch_bits > 0) {
@@ -38,6 +61,29 @@ void BitPacker_Flush(BitPacker* bp)
     }
 }
 
+bool Write_SerializeInteger(int32_t value, int32_t min, int32_t max)
+{
+    assert(min < max);
+    assert(value >= min);
+    assert(value <= max);
+    const int bits = bits_required(min, max);
+    uint32_t unsigned_value = value - min;
+
+    m_writer.WriteBits(unsigned_value, bits);
+    return true;
+}
+
+bool Read_SerializeInteger(int32_t& value, int32_t min, int32_t max)
+{
+    assert(min < max);
+    const int bits = bits_required(min, max);
+    if (m_reader.WouldReadPastEnd(bits)) {
+        return false;
+    }
+    uint32_t unsigned_value = m_reader.ReadBits(bits);
+    value = (int32_t)unsigned_value + min;
+    return true;
+}
 
 void BitWriter() {
     BitPacker bitpacker;
@@ -51,20 +97,24 @@ void BitWriter() {
 
     BitPacker_Flush(&bitpacker);
 
+    int packetSize = 5;
+
+    BitReader bitreader;
+    bitreader.scratch = 0;
+    bitreader.scratch_bits = 0;
+    bitreader.total_bits = packetSize * 8;
+    bitreader.num_bits_read = 0;
+    bitreader.word_index = 0;
+
+    ReadBits(&bitreader, 3);
+    ReadBits(&bitreader, 10);
+    ReadBits(&bitreader, 24);
+
+
 }
 
 
-bool Write_SerializeInteger(int32_t value, int32_t min, int32_t max)
-{
-    assert(min < max);
-    assert(value >= min);
-    assert(value <= max);
-    const int bits = bits_required(min, max);
-    uint32_t unsigned_value = value - min;
 
-    m_writer.WriteBits(unsigned_value, bits);
-    return true;
-}
 
 
 class WriteStream {
