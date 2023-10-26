@@ -13,7 +13,6 @@ typedef struct Buffer {
     int index;      // index of next byte to be read/written
 } Buffer;
 
-
 void WriteBits(Buffer& buffer, uint32_t value)
 {
     assert(buffer.index + 4 <= buffer.size);
