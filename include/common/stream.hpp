@@ -52,6 +52,7 @@ public:
         , scratch_bits(0)
     {
     }
+    
 
     void WriteBits(uint32_t value, int bits)
     {
@@ -61,9 +62,9 @@ public:
         while (scratch_bits >= 32) {
             assert(word_index < m_bytes / 4);
             buffer[word_index] = uint32_t(scratch & 0xFFFFFFFF);
+            word_index++;
             scratch >>= 32;
             scratch_bits -= 32;
-            word_index++;
         }
     }
 
@@ -75,6 +76,7 @@ public:
             word_index++;
         }
     }
+    
 
 private:
     uint8_t* buffer;
@@ -158,9 +160,9 @@ public:
     {
         assert(bits > 0);
         assert(value >= 0);
-        assert(value < UINT32_MAX);
+        //assert(value < INT32_MAX);
 
-        m_writer.WriteBits(value, bits );
+        m_writer.WriteBits(value, bits);
         return true;
     }
 
@@ -199,9 +201,12 @@ public:
     bool SerializeBits(int32_t& value, int bits)
     {
         assert(bits > 0);
+
         if (m_reader.WouldReadPastEnd(bits))
             return false;
+
         value = m_reader.ReadBits(bits);
+
         return true;
     }
 
@@ -263,14 +268,21 @@ private:
 
     */
     
-
+/*
 #define serialize_bits(stream, value, bits)                           \
     if (Stream::IsWriting) {                                           \
         stream.SerializeBits(value, bits); \
     } else {                                                          \
         stream.SerializeBits(value, bits);  \
     }
+    */
 
+#define serialize_bits(stream, value, bits)                 \
+    do {                                                       \
+        if (!stream.SerializeBits(value, bits)) {           \
+            return false;                                      \
+        }                                                      \
+    } while (0)
 
 
 struct PacketB {
