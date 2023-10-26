@@ -9,21 +9,6 @@ typedef struct Buffer {
     int index;     // index of next byte to be read/written
 } Buffer;
 
-typedef struct BitWriter {
-    uint64_t scratch;
-    int scratch_bits;
-    int word_index;
-    uint32_t* buffer;
-} BitWriter;
-
-typedef struct BitReader {
-    uint64_t scratch;
-    int scratch_bits;
-    int total_bits;
-    int num_bits_read;
-    int word_index;
-    uint32_t* buffer;
-} BitReader;
 
 
 template <uint32_t x>
@@ -56,50 +41,94 @@ struct BitsRequired {
 
 
 const int MaxElements = 32;
-const int MaxElementBits = BITS_REQUIRED(0, MaxElements);
 
-void WriteBits(BitWriter& bw, uint32_t value, int num_bits)
-{
-    bw.scratch |= ((uint64_t)value) << bw.scratch_bits;
-    bw.scratch_bits += num_bits;
-
-    while (bw.scratch_bits >= 32) {
-        bw.buffer[bw.word_index++] = (uint32_t)(bw.scratch & 0xFFFFFFFF);
-        bw.scratch >>= 32;
-        bw.scratch_bits -= 32;
-    }
-}
-
-uint32_t ReadBits(BitReader& br, int num_bits)
-{
-    br.num_bits_read += num_bits;
-
-    if (br.scratch_bits < num_bits) {
-        br.scratch |= ((uint64_t)br.buffer[br.word_index++]) << br.scratch_bits;
-        br.scratch_bits += 32;
+class BitWriter {
+public:
+    BitWriter(uint8_t* buffer, int bytes)
+        : buffer(buffer)
+        , m_bytes(bytes)
+        , word_index(0)
+        , scratch(0)
+        , scratch_bits(0)
+    {
     }
 
-
-    uint32_t value = (uint32_t)(br.scratch & ((1ULL << num_bits) - 1));
-
-    // Shift scratch to right by number of bits
-    br.scratch >>= num_bits;
-
-    // Subtract number of bits from scratch_bits
-    br.scratch_bits -= num_bits;
-
-    return value;
-}
-
-bool WouldReadPastEnd(BitReader& br, int bits)
-{
-    int bits_want_to_read = br.num_bits_read + bits;
-    
-    if (bits_want_to_read > br.total_bits) {
-        return true;
+    void WriteBits(uint32_t value, int bits)
+    {
+        assert(bits <= 32);
+        scratch |= uint64_t(value) << scratch_bits;
+        scratch_bits += bits;
+        while (scratch_bits >= 32) {
+            assert(word_index < m_bytes / 4);
+            buffer[word_index] = uint32_t(scratch & 0xFFFFFFFF);
+            scratch >>= 32;
+            scratch_bits -= 32;
+            word_index++;
+        }
     }
-    return false;
-}
+
+    void Flush()
+    {
+        if (scratch_bits != 0) {
+            assert(word_index < m_bytes / 4);
+            buffer[word_index] = uint32_t(scratch & 0xFFFFFFFF);
+            word_index++;
+        }
+    }
+
+private:
+    uint8_t* buffer;
+    int m_bytes;
+    int word_index = 0;
+    uint64_t scratch;
+    int scratch_bits;
+};
+
+class BitReader {
+public:
+    BitReader(const uint8_t* buffer, int bytes)
+        : m_buffer(buffer)
+        , m_bytes(bytes)
+        , total_bits(bytes * 8)
+        , num_bits_read(0)
+        , word_index(0)
+        , scratch(0)
+        , scratch_bits(0)
+    {
+    }
+
+    uint32_t ReadBits(int bits)
+    {
+        assert(bits <= 32);
+        if (scratch_bits < bits) {
+            assert(word_index < m_bytes / 4);
+            scratch |= uint64_t(m_buffer[word_index]) << scratch_bits;
+            scratch_bits += 32;
+            word_index++;
+        }
+        uint32_t value = uint32_t(scratch & ((uint64_t(1) << bits) - 1));
+        scratch >>= bits;
+        scratch_bits -= bits;
+        num_bits_read += bits;
+        return value;
+    }
+
+    bool WouldReadPastEnd(int bits) {
+        if (num_bits_read + bits > total_bits) {
+            return true;
+        }
+        return false;
+    }
+
+public:
+    const uint8_t* m_buffer;
+    int m_bytes;
+    int total_bits;
+    int num_bits_read;
+    int word_index;
+    uint64_t scratch;
+    int scratch_bits;
+};
 
 class WriteStream {
 public:
@@ -107,9 +136,8 @@ public:
     enum { IsReading = 0 };
 
     WriteStream(uint8_t* buffer, int bytes)
+        : m_writer(buffer, bytes)
     {
-        m_writer.buffer = (uint32_t*)buffer;
-        //m_writer.bytes = bytes;
     }
 
     bool SerializeInteger(int32_t value, int32_t min, int32_t max)
@@ -118,10 +146,10 @@ public:
         assert(value >= min);
         assert(value <= max);
 
-        const int bits = BITS_REQUIRED(min, max);
+        const int bits = BITS_REQUIRED(0, MaxElements);
         uint32_t unsigned_value = value - min;
 
-        WriteBits(m_writer, unsigned_value, bits);
+        m_writer.WriteBits(unsigned_value, bits);
 
         return true;
     }
@@ -130,10 +158,9 @@ public:
     {
         assert(bits > 0);
         assert(value >= 0);
-        assert(value < (1 << bits));
+        assert(value < UINT32_MAX);
 
-        WriteBits(m_writer, value, bits);
-
+        m_writer.WriteBits(value, bits );
         return true;
     }
 
@@ -147,25 +174,24 @@ public:
     enum { IsReading = 1 };
 
     ReadStream(const uint8_t* buffer, int bytes)
+        : m_reader(buffer, bytes)
     {
-        m_reader.buffer = (uint32_t*)buffer;
-        m_reader.total_bits = bytes * 8;
     }
 
     bool SerializeInteger(int32_t& value, int32_t min, int32_t max)
     {
         assert(min < max);
 
-        const int bits = BITS_REQUIRED(min, max);
+        const int bits = BITS_REQUIRED(0, MaxElements);
 
 
-        if (WouldReadPastEnd(m_reader, bits)) {
+        if (m_reader.WouldReadPastEnd(bits)) {
 
             return false;
         }
 
 
-        uint32_t unsigned_value = ReadBits(m_reader, bits);
+        uint32_t unsigned_value = m_reader.ReadBits(bits);
         value = (int32_t)unsigned_value + min;
         return true;
     }
@@ -173,9 +199,9 @@ public:
     bool SerializeBits(int32_t& value, int bits)
     {
         assert(bits > 0);
-        if (WouldReadPastEnd(m_reader, bits))
+        if (m_reader.WouldReadPastEnd(bits))
             return false;
-        value = ReadBits(m_reader, bits);
+        value = m_reader.ReadBits(bits);
         return true;
     }
 
@@ -203,13 +229,14 @@ private:
         }                                                      \
     } while (0)
 
+/*
 #define serialize_bits(stream, value, bits)             \
     do {                                                \
         assert(bits > 0);                               \
         int32_t int32_value;                            \
         if (Stream::IsWriting) {                        \
             assert(value >= 0);                         \
-            assert(value < (1 << bits));                \
+            assert(value < UINT32_MAX);                 \
             int32_value = (int32_t)value;               \
         }                                               \
         if (!stream.SerializeBits(int32_value, bits)) { \
@@ -222,6 +249,29 @@ private:
             }                                           \
         }                                               \
     } while (0)
+*/
+
+/*
+#define serialize_bits(stream, value, bits)         \
+    do {                                            \
+        if (Stream::IsWriting) {                    \
+            WriteBits(stream.m_writer, value, bits); \
+        } else if (Stream::IsReading) {             \
+            value = ReadBits(stream.m_reader, bits); \
+        }                                           \
+    } while (0)
+
+    */
+    
+
+#define serialize_bits(stream, value, bits)                           \
+    if (Stream::IsWriting) {                                           \
+        stream.SerializeBits(value, bits); \
+    } else {                                                          \
+        stream.SerializeBits(value, bits);  \
+    }
+
+
 
 struct PacketB {
     int numElements;
@@ -232,35 +282,9 @@ struct PacketB {
     {
         serialize_int(stream, numElements, 0, MaxElements);
         for (int i = 0; i < numElements; ++i) {
-            serialize_bits(buffer, elements[i], 32);
+            serialize_bits(stream, elements[i], 32);
         }
         return true;
     }
 };
 
-void main() {
-    int buffer_size = 256;
-    uint8_t buffer[256];
-
-    WriteStream writestream(buffer, buffer_size);
-
-    PacketB packet;
-    packet.numElements = 3;
-    packet.elements[0] = 1;
-    packet.elements[1] = 2;
-    packet.elements[2] = 3;
-
-    packet.Serialize(writestream);
-
-
-    PacketB packet2;
-
-    ReadStream readstream(buffer, buffer_size);
-
-    packet.Serialize(readstream);
-    
-    for (int i = 0; i < packet2.numElements; i++) {
-        printf("packet[%d]=%d\n", i, packet2.elements[i]);
-    }
-
-}

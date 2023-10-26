@@ -21,6 +21,9 @@
     <ClCompile Include="client.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="test_main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\common\socket.h">
@@ -32,7 +35,7 @@
     <ClInclude Include="..\include\common\packet.h">
       <Filter>Common</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\common\stream.h">
+    <ClInclude Include="..\include\common\stream.hpp">
       <Filter>Common</Filter>
     </ClInclude>
   </ItemGroup>
