@@ -3,10 +3,6 @@
 #include <stdint.h>
 #include <algorithm>
 
-
-
-
-
 typedef struct Buffer {
     uint8_t* data; // pointer to buffer data
     int size;      // size of buffer data (bytes)
@@ -76,16 +72,33 @@ void WriteBits(BitWriter& bw, uint32_t value, int num_bits)
 
 uint32_t ReadBits(BitReader& br, int num_bits)
 {
+    br.num_bits_read += num_bits;
+
     if (br.scratch_bits < num_bits) {
         br.scratch |= ((uint64_t)br.buffer[br.word_index++]) << br.scratch_bits;
         br.scratch_bits += 32;
     }
 
+
     uint32_t value = (uint32_t)(br.scratch & ((1ULL << num_bits) - 1));
+
+    // Shift scratch to right by number of bits
     br.scratch >>= num_bits;
+
+    // Subtract number of bits from scratch_bits
     br.scratch_bits -= num_bits;
 
     return value;
+}
+
+bool WouldReadPastEnd(BitReader& br, int bits)
+{
+    int bits_want_to_read = br.num_bits_read + bits;
+    
+    if (bits_want_to_read > br.total_bits) {
+        return true;
+    }
+    return false;
 }
 
 class WriteStream {
@@ -95,8 +108,8 @@ public:
 
     WriteStream(uint8_t* buffer, int bytes)
     {
-        m_writer.buffer = buffer;
-        m_writer.bytes = bytes;
+        m_writer.buffer = (uint32_t*)buffer;
+        //m_writer.bytes = bytes;
     }
 
     bool SerializeInteger(int32_t value, int32_t min, int32_t max)
@@ -105,7 +118,7 @@ public:
         assert(value >= min);
         assert(value <= max);
 
-        const int bits = bits_required(min, max);
+        const int bits = BITS_REQUIRED(min, max);
         uint32_t unsigned_value = value - min;
 
         WriteBits(m_writer, unsigned_value, bits);
@@ -126,6 +139,48 @@ public:
 
 private:
     BitWriter m_writer;
+};
+
+class ReadStream {
+public:
+    enum { IsWriting = 0 };
+    enum { IsReading = 1 };
+
+    ReadStream(const uint8_t* buffer, int bytes)
+    {
+        m_reader.buffer = (uint32_t*)buffer;
+        m_reader.total_bits = bytes * 8;
+    }
+
+    bool SerializeInteger(int32_t& value, int32_t min, int32_t max)
+    {
+        assert(min < max);
+
+        const int bits = BITS_REQUIRED(min, max);
+
+
+        if (WouldReadPastEnd(m_reader, bits)) {
+
+            return false;
+        }
+
+
+        uint32_t unsigned_value = ReadBits(m_reader, bits);
+        value = (int32_t)unsigned_value + min;
+        return true;
+    }
+
+    bool SerializeBits(int32_t& value, int bits)
+    {
+        assert(bits > 0);
+        if (WouldReadPastEnd(m_reader, bits))
+            return false;
+        value = ReadBits(m_reader, bits);
+        return true;
+    }
+
+private:
+    BitReader m_reader;
 };
 
 #define serialize_int(stream, value, min, max)                 \
@@ -183,8 +238,7 @@ struct PacketB {
     }
 };
 
-
-void test2() {
+void main() {
     int buffer_size = 256;
     uint8_t buffer[256];
 
@@ -197,5 +251,16 @@ void test2() {
     packet.elements[2] = 3;
 
     packet.Serialize(writestream);
+
+
+    PacketB packet2;
+
+    ReadStream readstream(buffer, buffer_size);
+
+    packet.Serialize(readstream);
+    
+    for (int i = 0; i < packet2.numElements; i++) {
+        printf("packet[%d]=%d\n", i, packet2.elements[i]);
+    }
 
 }
