@@ -48,7 +48,7 @@ typedef struct BitReader {
     uint32_t* buffer;
 } BitReader;
 
-
+/*
 void WriteBits(BitWriter& bitwriter, uint32_t value, int num_bits)
 {
     // Make sure we have enough room in the scratch buffer
@@ -64,6 +64,19 @@ void WriteBits(BitWriter& bitwriter, uint32_t value, int num_bits)
     bitwriter.scratch |= (uint64_t)value << bitwriter.scratch_bits;
     bitwriter.scratch_bits += num_bits;
 }
+*/
+void WriteBits(BitWriter& bitwriter, uint32_t value, int bits)
+{
+    bitwriter.scratch |= (uint64_t)value << bitwriter.scratch_bits;
+    bitwriter.scratch_bits += bits;
+
+    while (bitwriter.scratch_bits >= 32) {
+        bitwriter.buffer[bitwriter.word_index++] = (uint32_t)bitwriter.scratch;
+        bitwriter.scratch >>= 32;
+        bitwriter.scratch_bits -= 32;
+    }
+}
+
 
 // Function to flush any remaining bits to memory
 void FlushBitsToMemory(BitWriter& bitwriter)
@@ -74,12 +87,13 @@ void FlushBitsToMemory(BitWriter& bitwriter)
     }
 }
 
+
 uint32_t ReadBits(BitReader& reader, int num_bits)
 {
     uint32_t result = 0;
 
     while (num_bits > 0) {
-        if (reader.scratch_bits == 0) {
+        if (reader.scratch_bits == 0 || num_bits > reader.scratch_bits) {
             // Read the next word into scratch
             uint32_t word = reader.buffer[reader.word_index];
             reader.scratch |= (uint64_t)word << reader.scratch_bits;
@@ -108,6 +122,43 @@ uint32_t ReadBits(BitReader& reader, int num_bits)
     return result;
 }
 
+/*
+uint32_t ReadBits(BitReader br, int num_bits)
+{
+    if (br.scratch_bits < num_bits) {
+        br.scratch |= ((uint64_t)br.buffer[br.word_index]) << br.scratch_bits;
+        br.scratch_bits += 32;
+        br.word_index++;
+    }
+
+    uint32_t result = br.scratch & ((1ULL << num_bits) - 1);
+    br.scratch >>= num_bits;
+    br.scratch_bits -= num_bits;
+    br.num_bits_read += num_bits;
+
+    return result;
+}
+*/
+/*
+uint32_t ReadBits(BitReader reader, int num_bits)
+{
+    if (reader.scratch_bits == 0 || num_bits > reader.scratch_bits) {
+        // Read the next word into scratch
+        uint32_t word = reader.buffer[reader.word_index];
+        reader.scratch |= (uint64_t)word << reader.scratch_bits;
+        reader.scratch_bits += 32;
+        reader.word_index++;
+    }
+
+    uint32_t result = reader.scratch & ((1ULL << num_bits) - 1);
+    reader.scratch >>= num_bits;
+    reader.scratch_bits -= num_bits;
+    reader.num_bits_read += num_bits;
+
+    return result;
+}*/
+
+
 bool ReadOverflow(BitReader bitreader, int bits) {
     return (bitreader.num_bits_read + bits) > bitreader.total_bits;
 }
@@ -119,7 +170,7 @@ struct PacketB {
 
     void Write(BitWriter& writer)
     {
-        printf("MaxElementBits: %d\n", MaxElementBits);
+        printf("Write MaxElementBits: %d\n", MaxElementBits);
         WriteBits(writer, numElements, MaxElementBits);
         for (int i = 0; i < numElements; ++i) {
             WriteBits(writer, elements[i], 32);
@@ -151,7 +202,7 @@ int main() {
     
     packet_1.elements[0] = 3;
     packet_1.elements[1] = 5;
-    packet_1.elements[2] = 5;
+    packet_1.elements[2] = 7;
     packet_1.elements[3] = 6;
     packet_1.elements[4] = 1;
 
@@ -167,6 +218,8 @@ int main() {
 
     FlushBitsToMemory(writer);
 
+    uint8_t first_6_bits = p_buffer[0] & 0x3F;
+    printf("first_6_bits: %u\n", first_6_bits);
 
     for (int i = 0; i < 5; i++) {
         printf("Int Value %d: %u\n", i + 1, p_buffer[i] >> 6);
