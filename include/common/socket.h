@@ -145,6 +145,13 @@ bool SendPacket(SocketHandle handle, Address destination, void* data, int size)
 
     packet_1.WriteSerialize(writer);
 
+    PacketA packet_2;
+    packet_2.x = 16;
+    packet_2.y = 83;
+    packet_2.z = 195;
+
+    packet_2.WriteSerialize(writer);
+
     FlushBitsToMemory(writer);
 
     int sent_bytes = sendto(handle,

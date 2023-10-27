@@ -132,6 +132,8 @@ int main()
 
         packet.ReadSerialize(reader);
 
+        PacketA packet_2;
+        packet_2.ReadSerialize(reader);
 
         // Increase time for all clients
         for (auto& pair : clients) {
@@ -157,11 +159,11 @@ int main()
             for (int i = 0; i < packet.numElements; ++i) {
                 printf("elements[%d]: %d\n", i, packet.elements[i]);
             }
-            /*
-            printf("    packet.x: %d\n", packet.x);
-            printf("    packet.y: %d\n", packet.y);
-            printf("    packet.z: %d\n", packet.z);
-            */
+            
+            printf("    packet.x: %d\n", packet_2.x);
+            printf("    packet.y: %d\n", packet_2.y);
+            printf("    packet.z: %d\n", packet_2.z);
+            
             /*
             printf("[Client %d] %s\n", sender.address, data);
             printf("    protocol_id: %d\n", protocol_id);
