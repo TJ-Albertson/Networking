@@ -61,7 +61,14 @@ public:
         scratch_bits += bits;
         while (scratch_bits >= 32) {
             assert(word_index < m_bytes / 4);
-            buffer[word_index] = uint32_t(scratch & 0xFFFFFFFF);
+            
+            uint32_t word = uint32_t(scratch & 0xFFFFFFFF);
+
+            #ifdef BIG_ENDIAN
+                value = bswap(word);
+            #endif
+
+            buffer[word_index] = word;
             word_index++;
             scratch >>= 32;
             scratch_bits -= 32;
@@ -109,6 +116,12 @@ public:
             word_index++;
         }
         uint32_t value = uint32_t(scratch & ((uint64_t(1) << bits) - 1));
+
+
+        #ifdef BIG_ENDIAN
+            value = bswap(value);
+        #endif
+
         scratch >>= bits;
         scratch_bits -= bits;
         num_bits_read += bits;

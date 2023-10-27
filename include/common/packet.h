@@ -36,6 +36,8 @@ void WriteInteger(Buffer& buffer, uint32_t value)
     buffer.index += 4;
 }
 
+
+
 void WriteShort(Buffer& buffer, uint16_t value) {
     assert(buffer.index + 4 <= buffer.size);
 #ifdef BIG_ENDIAN

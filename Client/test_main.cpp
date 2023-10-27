@@ -1,14 +1,21 @@
 #include "stream.hpp"
+#include <iostream>
+#include <bitset>
 
 // Function to print an integer in binary
 void printBinary(int n)
 {
+    const int numBits = 32;
+
     if (n == 0) {
-        printf("0");
+        // Print leading zeros if the number is zero
+        for (int i = 0; i < numBits; i++) {
+            printf("0");
+        }
         return;
     }
 
-    int binary[32];
+    int binary[numBits];
     int i = 0;
 
     // Convert the decimal number to binary
@@ -16,6 +23,11 @@ void printBinary(int n)
         binary[i] = n % 2;
         n = n / 2;
         i++;
+    }
+
+    // Print leading zeros to ensure a fixed number of bits
+    for (int j = i; j < numBits; j++) {
+        printf("0");
     }
 
     // Print the binary representation
@@ -35,7 +47,7 @@ int main()
         //packet1.elements[i] = i+1;
     }
     packet1.elements[0] = 3;
-    packet1.elements[1] = 7;
+    packet1.elements[1] = 5;
     packet1.elements[2] = 5;
     packet1.elements[3] = 6;
     packet1.elements[4] = 1;
@@ -55,6 +67,23 @@ int main()
     WriteStream writeStream(buffer, sizeof(buffer));
     packet1.Serialize(writeStream);
 
+
+     for (int i = 0; i < 20; i++) {
+        std::bitset<8> binary(buffer[i]);
+        std::cout << binary;
+        if ((i + 1) % 4 == 0) {
+            std::cout << " ";
+        }
+    }
+    std::cout << std::endl;
+
+    uint32_t* intBuffer = (uint32_t*)buffer;
+
+    for (int i = 0; i < 5; i++) {
+        printf("Int Value %d: %u\n", i + 1, intBuffer[i]);
+    }
+    
+        std::cout << std::endl;
 
 
     // Create another packet and deserialize the buffer to the packet
