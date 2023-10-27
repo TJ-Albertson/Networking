@@ -43,28 +43,11 @@ typedef struct BitReader {
     uint64_t scratch;
     int scratch_bits;
     int total_bits;
-    int num_bits_read;
+    int total_bits_read;
     int word_index;
     uint32_t* buffer;
 } BitReader;
 
-/*
-void WriteBits(BitWriter& bitwriter, uint32_t value, int num_bits)
-{
-    // Make sure we have enough room in the scratch buffer
-    if (bitwriter.scratch_bits + num_bits > 64) {
-        // Flush lower 32 bits to memory
-        bitwriter.buffer[bitwriter.word_index++] = (uint32_t)(bitwriter.scratch & 0xFFFFFFFF);
-        // Shift right by 32 and subtract 32 from scratch_bits
-        bitwriter.scratch >>= 32;
-        bitwriter.scratch_bits -= 32;
-    }
-
-    // Pack the bits into the scratch buffer
-    bitwriter.scratch |= (uint64_t)value << bitwriter.scratch_bits;
-    bitwriter.scratch_bits += num_bits;
-}
-*/
 void WriteBits(BitWriter& bitwriter, uint32_t value, int bits)
 {
     bitwriter.scratch |= (uint64_t)value << bitwriter.scratch_bits;
@@ -77,7 +60,6 @@ void WriteBits(BitWriter& bitwriter, uint32_t value, int bits)
     }
 }
 
-
 // Function to flush any remaining bits to memory
 void FlushBitsToMemory(BitWriter& bitwriter)
 {
@@ -87,13 +69,12 @@ void FlushBitsToMemory(BitWriter& bitwriter)
     }
 }
 
-
-uint32_t ReadBits(BitReader& reader, int num_bits)
+uint32_t ReadBits(BitReader& reader, int num_bits_to_read)
 {
     uint32_t result = 0;
 
-    while (num_bits > 0) {
-        if (reader.scratch_bits == 0 || num_bits > reader.scratch_bits) {
+    while (num_bits_to_read > 0) {
+        if (reader.scratch_bits == 0 || num_bits_to_read > reader.scratch_bits) {
             // Read the next word into scratch
             uint32_t word = reader.buffer[reader.word_index];
             reader.scratch |= (uint64_t)word << reader.scratch_bits;
@@ -102,7 +83,7 @@ uint32_t ReadBits(BitReader& reader, int num_bits)
         }
 
         // Calculate the number of bits to read from scratch
-        int bits_to_read = (num_bits < reader.scratch_bits) ? num_bits : reader.scratch_bits;
+        int bits_to_read = (num_bits_to_read < reader.scratch_bits) ? num_bits_to_read : reader.scratch_bits;
 
         // Extract the bits from scratch
         uint32_t extracted_bits = reader.scratch & ((1ULL << bits_to_read) - 1);
@@ -112,57 +93,19 @@ uint32_t ReadBits(BitReader& reader, int num_bits)
         reader.scratch_bits -= bits_to_read;
 
         // Update the result with the extracted bits
-        result |= (extracted_bits << (num_bits - bits_to_read));
+        result |= (extracted_bits << (num_bits_to_read - bits_to_read));
 
         // Update the number of bits left to read
-        num_bits -= bits_to_read;
+        num_bits_to_read -= bits_to_read;
     }
 
-    reader.num_bits_read += num_bits;
+    reader.total_bits_read += num_bits_to_read;
     return result;
 }
-
-/*
-uint32_t ReadBits(BitReader br, int num_bits)
-{
-    if (br.scratch_bits < num_bits) {
-        br.scratch |= ((uint64_t)br.buffer[br.word_index]) << br.scratch_bits;
-        br.scratch_bits += 32;
-        br.word_index++;
-    }
-
-    uint32_t result = br.scratch & ((1ULL << num_bits) - 1);
-    br.scratch >>= num_bits;
-    br.scratch_bits -= num_bits;
-    br.num_bits_read += num_bits;
-
-    return result;
-}
-*/
-/*
-uint32_t ReadBits(BitReader reader, int num_bits)
-{
-    if (reader.scratch_bits == 0 || num_bits > reader.scratch_bits) {
-        // Read the next word into scratch
-        uint32_t word = reader.buffer[reader.word_index];
-        reader.scratch |= (uint64_t)word << reader.scratch_bits;
-        reader.scratch_bits += 32;
-        reader.word_index++;
-    }
-
-    uint32_t result = reader.scratch & ((1ULL << num_bits) - 1);
-    reader.scratch >>= num_bits;
-    reader.scratch_bits -= num_bits;
-    reader.num_bits_read += num_bits;
-
-    return result;
-}*/
-
 
 bool ReadOverflow(BitReader bitreader, int bits) {
-    return (bitreader.num_bits_read + bits) > bitreader.total_bits;
+    return (bitreader.total_bits_read + bits) > bitreader.total_bits;
 }
-
 
 struct PacketB {
     int numElements;
@@ -170,7 +113,6 @@ struct PacketB {
 
     void Write(BitWriter& writer)
     {
-        printf("Write MaxElementBits: %d\n", MaxElementBits);
         WriteBits(writer, numElements, MaxElementBits);
         for (int i = 0; i < numElements; ++i) {
             WriteBits(writer, elements[i], 32);
@@ -181,8 +123,8 @@ struct PacketB {
     {
         numElements = ReadBits(reader, MaxElementBits);
 
-        if (numElements > MaxElements) {
-            //reader.Abort();
+        if (numElements > numElements) {
+            printf("numElements > numElements\n");
             return;
         }
 
@@ -201,7 +143,7 @@ int main() {
     packet_1.numElements = 5;
     
     packet_1.elements[0] = 3;
-    packet_1.elements[1] = 5;
+    packet_1.elements[1] = 8;
     packet_1.elements[2] = 7;
     packet_1.elements[3] = 6;
     packet_1.elements[4] = 1;
@@ -219,20 +161,17 @@ int main() {
     FlushBitsToMemory(writer);
 
     uint8_t first_6_bits = p_buffer[0] & 0x3F;
-    printf("first_6_bits: %u\n", first_6_bits);
+    // printf("first_6_bits: %u\n", first_6_bits);
 
     for (int i = 0; i < 5; i++) {
-        printf("Int Value %d: %u\n", i + 1, p_buffer[i] >> 6);
+       // printf("Int Value %d: %u\n", i + 1, p_buffer[i] >> 6);
     }
-
-    std::cout << std::endl;
-
     
     BitReader reader;
     reader.scratch = 0;
     reader.scratch_bits = 0;
     reader.total_bits = 8 * sizeof(p_buffer);
-    reader.num_bits_read = 0;
+    reader.total_bits_read = 0;
     reader.word_index = 0;
     reader.buffer = p_buffer;
 
@@ -240,7 +179,7 @@ int main() {
 
     packet_2.Read(reader);
 
-    printf("packet2\n");
+    printf("packet_2\n");
     printf("numElements: %d\n", packet_2.numElements);
     for (int i = 0; i < packet_2.numElements; ++i) {
         printf("elements[%d]: %d\n", i, packet_2.elements[i]);
