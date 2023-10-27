@@ -29,7 +29,7 @@ int main()
             // Handle error or EOF
             break;
         }
-
+        
         // Check if the input is just a newline character (Enter key) and break the loop
         if (input[0] == '\n') {
             break;

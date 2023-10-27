@@ -119,15 +119,18 @@ int main()
 
 
 
-        Buffer b_buffer;
 
-        const int bufferSize = 256;
-        b_buffer.data = buffer;
-        b_buffer.size = bufferSize;
-        b_buffer.index = 0;
+        BitReader reader;
+        reader.scratch = 0;
+        reader.scratch_bits = 0;
+        reader.total_bits = 8 * sizeof(buffer);
+        reader.total_bits_read = 0;
+        reader.word_index = 0;
+        reader.buffer = (uint32_t*)buffer;
 
-        PacketA packet;
-        packet.Read(b_buffer);
+        PacketB packet;
+
+        packet.ReadSerialize(reader);
 
 
         // Increase time for all clients
@@ -149,9 +152,16 @@ int main()
             }
 
             printf("[Client %d]\n", sender.address);
+
+            printf("numElements: %d\n", packet.numElements);
+            for (int i = 0; i < packet.numElements; ++i) {
+                printf("elements[%d]: %d\n", i, packet.elements[i]);
+            }
+            /*
             printf("    packet.x: %d\n", packet.x);
             printf("    packet.y: %d\n", packet.y);
             printf("    packet.z: %d\n", packet.z);
+            */
             /*
             printf("[Client %d] %s\n", sender.address, data);
             printf("    protocol_id: %d\n", protocol_id);

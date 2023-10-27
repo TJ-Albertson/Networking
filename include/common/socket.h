@@ -10,8 +10,6 @@
 
 typedef int SocketHandle;
 
-
-
 /*
 bool CreateSocket(Socket& socket);
 
@@ -128,27 +126,30 @@ bool SendPacket(SocketHandle handle, Address destination, void* data, int size)
 
     memcpy(buffer + 5, data, size);
 
+    PacketB packet_1;
+    packet_1.numElements = 5;
 
+    packet_1.elements[0] = 1;
+    packet_1.elements[1] = 9;
+    packet_1.elements[2] = 3;
+    packet_1.elements[3] = 7;
+    packet_1.elements[4] = 2;
 
+    uint32_t p_buffer[256];
 
-    Buffer b_buffer;
+    BitWriter writer;
+    writer.buffer = p_buffer;
+    writer.scratch = 0;
+    writer.scratch_bits = 0;
+    writer.word_index = 0;
 
-    const int bufferSize = 256;
-    uint8_t b_buffer_data[bufferSize];
-    b_buffer.data = b_buffer_data;
-    b_buffer.size = bufferSize;
-    b_buffer.index = 0;
+    packet_1.WriteSerialize(writer);
 
-    PacketA packet;
-    packet.x = 14;
-    packet.y = 27;
-    packet.z = 75;
-
-    packet.Write(b_buffer);
+    FlushBitsToMemory(writer);
 
     int sent_bytes = sendto(handle,
-        (const char*)b_buffer.data,
-        b_buffer.size,
+        (const char*)p_buffer,
+        256,
         0,
         (sockaddr*)&destination.sock_address,
         sizeof(sockaddr_in));

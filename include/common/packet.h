@@ -23,7 +23,7 @@ struct PacketA {
     }
 };
 
-struct PacketB_Two {
+struct PacketB {
     int numElements;
     int elements[MaxElements];
 
