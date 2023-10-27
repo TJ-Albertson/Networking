@@ -141,6 +141,44 @@ bool WriteSerializeBits(BitWriter& writer, int32_t value, int bits)
        }                                                \
 
 
+
+
+
+bool ReadSerializeInteger(BitReader& reader, int32_t& value, int32_t min, int32_t max)
+{
+    assert(min < max);
+
+    const int bits = BITS_REQUIRED(0, MaxElements);
+
+    if (ReadOverflow(reader, bits)) {
+        return false;
+    }
+
+    uint32_t unsigned_value = ReadBits(reader, bits);
+    value = (int32_t)unsigned_value + min;
+    return true;
+}
+
+#define read_serialize_int(reader, value, min, max)                     \
+    do {                                                                \
+        assert(min < max);                                              \
+        int32_t int32_value;                                            \
+        if (!ReadSerializeInteger(reader, int32_value, min, max)) {     \
+            return false;                                               \
+        }                                                               \
+        value = int32_value;                                            \
+        if (value < min || value > max) {                               \
+            return false;                                               \
+        }                                                               \
+    } while (0)
+
+
+
+
+
+
+
+
 struct PacketA {
     int x, y, z;
 
@@ -157,6 +195,29 @@ struct PacketA {
         write_serialize_bits(writer, x, 32);
         write_serialize_bits(writer, y, 32);
         write_serialize_bits(writer, z, 32);
+        return true;
+    }
+};
+
+struct PacketB {
+    int numElements;
+    int elements[MaxElements];
+
+    bool ReadSerialize(BitReader& reader)
+    {
+        read_serialize_int(reader, numElements, 0, MaxElements);
+        for (int i = 0; i < numElements; ++i) {
+            read_serialize_bits(reader, elements[i], 32);
+        }
+        return true;
+    }
+
+    bool WriteSerialize(BitWriter& writer)
+    {
+        write_serialize_int(writer, numElements, 0, MaxElements);
+        for (int i = 0; i < numElements; ++i) {
+            write_serialize_bits(writer, elements[i], 32);
+        }
         return true;
     }
 };
