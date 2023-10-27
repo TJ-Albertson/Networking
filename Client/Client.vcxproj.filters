@@ -41,5 +41,8 @@
     <ClInclude Include="..\include\common\stream.hpp">
       <Filter>Common</Filter>
     </ClInclude>
+    <ClInclude Include="..\include\common\serializer.h">
+      <Filter>Common</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

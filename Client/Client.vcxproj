@@ -161,6 +161,7 @@
   <ItemGroup>
     <ClInclude Include="..\include\common\address.h" />
     <ClInclude Include="..\include\common\packet.h" />
+    <ClInclude Include="..\include\common\serializer.h" />
     <ClInclude Include="..\include\common\socket.h" />
     <ClInclude Include="..\include\common\stream.hpp" />
   </ItemGroup>
