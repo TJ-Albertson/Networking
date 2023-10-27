@@ -175,6 +175,34 @@ bool ReadSerializeInteger(BitReader& reader, int32_t& value, int32_t min, int32_
 
 
 
+bool WriteSerializeInteger(BitWriter& writer, int32_t value, int32_t min, int32_t max)
+{
+    assert(min < max);
+    assert(value >= min);
+    assert(value <= max);
+
+    const int bits = BITS_REQUIRED(0, MaxElements);
+    uint32_t unsigned_value = value - min;
+
+    WriteBits(writer, unsigned_value, bits);
+
+    return true;
+}
+
+#define write_serialize_int(writer, value, min, max)                    \
+    do {                                                                \
+        assert(min < max);                                              \
+        int32_t int32_value;                                            \
+                                                                        \
+        assert(value >= min);                                           \
+        assert(value <= max);                                           \
+        int32_value = (int32_t)value;                                   \
+                                                                        \
+        if (!WriteSerializeInteger(writer, int32_value, min, max)) {    \
+            return false;                                               \
+        }                                                               \
+    } while (0)
+
 
 
 
@@ -199,7 +227,7 @@ struct PacketA {
     }
 };
 
-struct PacketB {
+struct PacketB_Two {
     int numElements;
     int elements[MaxElements];
 
@@ -253,7 +281,7 @@ struct PacketB {
 };
 
 int main() {
-
+    /*
     PacketB packet_1;
     packet_1.numElements = 5;
     
@@ -299,7 +327,7 @@ int main() {
     for (int i = 0; i < packet_2.numElements; ++i) {
         printf("elements[%d]: %d\n", i, packet_2.elements[i]);
     }
-
+    */
 
 
     
@@ -338,4 +366,50 @@ int main() {
     printf("packet_a2.x: %d\n", packet_a2.x);
     printf("packet_a2.y: %d\n", packet_a2.y);
     printf("packet_a2.z: %d\n", packet_a2.z);
+    printf("\n");
+
+
+
+
+
+    PacketB_Two packet_1;
+    packet_1.numElements = 5;
+
+    packet_1.elements[0] = 1;
+    packet_1.elements[1] = 9;
+    packet_1.elements[2] = 3;
+    packet_1.elements[3] = 7;
+    packet_1.elements[4] = 2;
+
+    uint32_t p_buffer[256];
+
+    BitWriter writer;
+    writer.buffer = p_buffer;
+    writer.scratch = 0;
+    writer.scratch_bits = 0;
+    writer.word_index = 0;
+
+    packet_1.WriteSerialize(writer);
+
+    FlushBitsToMemory(writer);
+
+    BitReader reader;
+    reader.scratch = 0;
+    reader.scratch_bits = 0;
+    reader.total_bits = 8 * sizeof(p_buffer);
+    reader.total_bits_read = 0;
+    reader.word_index = 0;
+    reader.buffer = p_buffer;
+
+    PacketB_Two packet_2;
+
+    packet_2.ReadSerialize(reader);
+
+    printf("packet_2\n");
+    printf("numElements: %d\n", packet_2.numElements);
+    for (int i = 0; i < packet_2.numElements; ++i) {
+        printf("elements[%d]: %d\n", i, packet_2.elements[i]);
+    }
+
+
 }
