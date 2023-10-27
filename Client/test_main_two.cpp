@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <iostream>
+#include <assert.h>
 
 template <uint32_t x>
 struct PopCount {
@@ -107,6 +108,59 @@ bool ReadOverflow(BitReader bitreader, int bits) {
     return (bitreader.total_bits_read + bits) > bitreader.total_bits;
 }
 
+
+bool ReadSerializeBits(BitReader& reader, int32_t& value, int bits)
+{
+    assert(bits > 0);
+
+    if (ReadOverflow(reader, bits))
+        return false;
+
+    value = ReadBits(reader, bits);
+
+    return true;
+}
+
+bool WriteSerializeBits(BitWriter& writer, int32_t value, int bits)
+{
+    assert(bits > 0);
+    assert(value >= 0);
+
+    WriteBits(writer, value, bits);
+    return true;
+}
+
+#define read_serialize_bits(reader, value, bits)        \
+       if (!ReadSerializeBits(reader, value, bits)) {   \
+            return false;                               \
+       }                                                \
+
+#define write_serialize_bits(reader, value, bits)       \
+       if (!WriteSerializeBits(reader, value, bits)) {  \
+            return false;                               \
+       }                                                \
+
+
+struct PacketA {
+    int x, y, z;
+
+    bool ReadSerialize(BitReader& reader)
+    {
+        read_serialize_bits(reader, x, 32);
+        read_serialize_bits(reader, y, 32);
+        read_serialize_bits(reader, z, 32);
+        return true;
+    }
+
+    bool WriteSerialize(BitWriter& writer)
+    {
+        write_serialize_bits(writer, x, 32);
+        write_serialize_bits(writer, y, 32);
+        write_serialize_bits(writer, z, 32);
+        return true;
+    }
+};
+
 struct PacketB {
     int numElements;
     int elements[MaxElements];
@@ -184,4 +238,43 @@ int main() {
     for (int i = 0; i < packet_2.numElements; ++i) {
         printf("elements[%d]: %d\n", i, packet_2.elements[i]);
     }
+
+
+
+    
+
+    PacketA packet_a1;
+    packet_a1.x = 15;
+    packet_a1.y = 28;
+    packet_a1.z = 32;
+
+
+    uint32_t pa_buffer[256];
+
+    BitWriter writer2;
+    writer2.buffer = pa_buffer;
+    writer2.scratch = 0;
+    writer2.scratch_bits = 0;
+    writer2.word_index = 0;
+
+    packet_a1.WriteSerialize(writer2);
+
+
+    BitReader reader2;
+    reader2.scratch = 0;
+    reader2.scratch_bits = 0;
+    reader2.total_bits = 8 * sizeof(pa_buffer);
+    reader2.total_bits_read = 0;
+    reader2.word_index = 0;
+    reader2.buffer = pa_buffer;
+
+    PacketA packet_a2;
+
+    packet_a2.ReadSerialize(reader2);
+
+    printf("\n");
+    printf("packet_a2\n");
+    printf("packet_a2.x: %d\n", packet_a2.x);
+    printf("packet_a2.y: %d\n", packet_a2.y);
+    printf("packet_a2.z: %d\n", packet_a2.z);
 }

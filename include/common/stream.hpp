@@ -56,20 +56,11 @@ public:
 
     void WriteBits(uint32_t value, int bits)
     {
-        assert(bits <= 32);
-        scratch |= uint64_t(value) << scratch_bits;
+        scratch |= (uint64_t)value << scratch_bits;
         scratch_bits += bits;
+
         while (scratch_bits >= 32) {
-            assert(word_index < m_bytes / 4);
-            
-            uint32_t word = uint32_t(scratch & 0xFFFFFFFF);
-
-            #ifdef BIG_ENDIAN
-                value = bswap(word);
-            #endif
-
-            buffer[word_index] = word;
-            word_index++;
+            buffer[word_index++] = (uint32_t)scratch;
             scratch >>= 32;
             scratch_bits -= 32;
         }
@@ -108,24 +99,36 @@ public:
 
     uint32_t ReadBits(int bits)
     {
-        assert(bits <= 32);
-        if (scratch_bits < bits) {
-            assert(word_index < m_bytes / 4);
-            scratch |= uint64_t(m_buffer[word_index]) << scratch_bits;
-            scratch_bits += 32;
-            word_index++;
+        uint32_t result = 0;
+
+        while (bits > 0) {
+            if (scratch_bits == 0 || bits > scratch_bits) {
+                // Read the next word into scratch
+                uint32_t word = m_buffer[word_index];
+                scratch |= (uint64_t)word << scratch_bits;
+                scratch_bits += 32;
+                word_index++;
+            }
+
+            // Calculate the number of bits to read from scratch
+            int bits_to_read = (bits < scratch_bits) ? bits : scratch_bits;
+
+            // Extract the bits from scratch
+            uint32_t extracted_bits = scratch & ((1ULL << bits_to_read) - 1);
+
+            // Update scratch and scratch_bits
+            scratch >>= bits_to_read;
+            scratch_bits -= bits_to_read;
+
+            // Update the result with the extracted bits
+            result |= (extracted_bits << (bits - bits_to_read));
+
+            // Update the number of bits left to read
+            bits -= bits_to_read;
         }
-        uint32_t value = uint32_t(scratch & ((uint64_t(1) << bits) - 1));
 
-
-        #ifdef BIG_ENDIAN
-            value = bswap(value);
-        #endif
-
-        scratch >>= bits;
-        scratch_bits -= bits;
         num_bits_read += bits;
-        return value;
+        return result;
     }
 
     bool WouldReadPastEnd(int bits) {
