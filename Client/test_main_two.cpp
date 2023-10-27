@@ -119,6 +119,7 @@ struct PacketB {
 
     void Write(BitWriter& writer)
     {
+        printf("MaxElementBits: %d\n", MaxElementBits);
         WriteBits(writer, numElements, MaxElementBits);
         for (int i = 0; i < numElements; ++i) {
             WriteBits(writer, elements[i], 32);
@@ -165,6 +166,13 @@ int main() {
     packet_1.Write(writer);
 
     FlushBitsToMemory(writer);
+
+
+    for (int i = 0; i < 5; i++) {
+        printf("Int Value %d: %u\n", i + 1, p_buffer[i] >> 6);
+    }
+
+    std::cout << std::endl;
 
     
     BitReader reader;
