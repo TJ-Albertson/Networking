@@ -114,7 +114,7 @@ bool WouldOverflow(BitReader reader, int bits)
     return reader.total_bits_read + bits > reader.total_bits;
 }
 
-bool ReadSerializeBits(BitReader& reader, int32_t& value, int bits)
+bool ReadSerializeBits(BitReader& reader, uint32_t& value, int bits)
 {
     assert(bits > 0);
     assert(bits <= 32);
@@ -127,7 +127,7 @@ bool ReadSerializeBits(BitReader& reader, int32_t& value, int bits)
     return true;
 }
 
-bool WriteSerializeBits(BitWriter& writer, int32_t value, int bits)
+bool WriteSerializeBits(BitWriter& writer, uint32_t value, int bits)
 {
     assert(bits > 0);
     assert(bits <= 32);
@@ -136,10 +136,17 @@ bool WriteSerializeBits(BitWriter& writer, int32_t value, int bits)
     return true;
 }
 
-#define read_serialize_bits(reader, value, bits)   \
-    if (!ReadSerializeBits(reader, value, bits)) { \
-        return false;                              \
-    }
+
+
+#define read_serialize_bits(reader, value, bits)       \
+    do {                                               \
+        assert(bits > 0);                              \
+        assert(bits <= 32);                            \
+        uint32_t uint32_value;                         \
+        if (!ReadSerializeBits(reader, uint32_value, bits)) \
+            return false;                              \
+        value = uint32_value;                          \
+    } while (0)
 
 #define write_serialize_bits(reader, value, bits)   \
     if (!WriteSerializeBits(reader, value, bits)) { \
