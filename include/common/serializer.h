@@ -51,6 +51,22 @@ typedef struct BitReader {
     uint32_t* buffer;
 } BitReader;
 
+enum PackerType {
+    WRITER,
+    READER
+};
+
+typedef struct BitPacker {
+    PackerType type;
+
+    uint64_t scratch;
+    int scratch_bits;
+    int total_bits;
+    int bits_read;
+    int word_index;
+    uint32_t* buffer;
+} BitPacker;
+
 void WriteBits(BitWriter& writer, uint32_t value, int bits)
 {
     assert(bits > 0);
