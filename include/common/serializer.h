@@ -51,24 +51,27 @@ typedef struct BitReader {
     uint32_t* buffer;
 } BitReader;
 
-void WriteBits(BitWriter& bitwriter, uint32_t value, int bits)
+void WriteBits(BitWriter& writer, uint32_t value, int bits)
 {
-    bitwriter.scratch |= (uint64_t)value << bitwriter.scratch_bits;
-    bitwriter.scratch_bits += bits;
+    assert(bits > 0);
+    assert(bits <= 32);
 
-    while (bitwriter.scratch_bits >= 32) {
-        bitwriter.buffer[bitwriter.word_index++] = (uint32_t)bitwriter.scratch;
-        bitwriter.scratch >>= 32;
-        bitwriter.scratch_bits -= 32;
+    writer.scratch |= (uint64_t)value << writer.scratch_bits;
+    writer.scratch_bits += bits;
+
+    while (writer.scratch_bits >= 32) {
+        writer.buffer[writer.word_index++] = (uint32_t)writer.scratch;
+        writer.scratch >>= 32;
+        writer.scratch_bits -= 32;
     }
 }
 
 // Function to flush any remaining bits to memory
-void FlushBitsToMemory(BitWriter& bitwriter)
+void FlushBitsToMemory(BitWriter& writer)
 {
-    if (bitwriter.scratch_bits > 0) {
+    if (writer.scratch_bits > 0) {
         // Flush lower 32 bits to memory
-        bitwriter.buffer[bitwriter.word_index++] = (uint32_t)(bitwriter.scratch & 0xFFFFFFFF);
+        writer.buffer[writer.word_index++] = (uint32_t)(writer.scratch & 0xFFFFFFFF);
     }
 }
 
@@ -106,16 +109,17 @@ uint32_t ReadBits(BitReader& reader, int num_bits_to_read)
     return result;
 }
 
-bool ReadOverflow(BitReader bitreader, int bits)
+bool WouldOverflow(BitReader reader, int bits)
 {
-    return (bitreader.total_bits_read + bits) > bitreader.total_bits;
+    return reader.total_bits_read + bits > reader.total_bits;
 }
 
 bool ReadSerializeBits(BitReader& reader, int32_t& value, int bits)
 {
     assert(bits > 0);
+    assert(bits <= 32);
 
-    if (ReadOverflow(reader, bits))
+    if (WouldOverflow(reader, bits))
         return false;
 
     value = ReadBits(reader, bits);
@@ -126,7 +130,7 @@ bool ReadSerializeBits(BitReader& reader, int32_t& value, int bits)
 bool WriteSerializeBits(BitWriter& writer, int32_t value, int bits)
 {
     assert(bits > 0);
-    assert(value >= 0);
+    assert(bits <= 32);
 
     WriteBits(writer, value, bits);
     return true;
@@ -148,7 +152,7 @@ bool ReadSerializeInteger(BitReader& reader, int32_t& value, int32_t min, int32_
 
     const int bits = BITS_REQUIRED(0, MaxElements);
 
-    if (ReadOverflow(reader, bits)) {
+    if (WouldOverflow(reader, bits)) {
         return false;
     }
 

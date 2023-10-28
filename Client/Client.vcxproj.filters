@@ -44,5 +44,11 @@
     <ClInclude Include="..\include\common\serializer.h">
       <Filter>Common</Filter>
     </ClInclude>
+    <ClInclude Include="..\include\common\fragment.h">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\common\hash.h">
+      <Filter>Common</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
