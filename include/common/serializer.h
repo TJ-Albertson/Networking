@@ -55,9 +55,9 @@ typedef struct BitReader {
     int word_index;
 } BitReader;
 
-enum PackerType {
-    WRITER,
-    READER
+enum StreamType {
+    WRITE,
+    READ
 };
 
 typedef struct reader {
@@ -65,8 +65,9 @@ typedef struct reader {
     uint64_t m_scratch;
 
     int m_numBits;
-    int m_numBytes;
+
     int m_bitsRead;
+
     int m_wordIndex;
     int m_scratchBits;
 };
@@ -76,23 +77,76 @@ typedef struct writer {
     uint64_t m_scratch;
 
     int m_numBits;
-    int m_numWords;
+
     int m_bitsWritten;
+
     int m_wordIndex;
     int m_scratchBits;
 };
 
-typedef struct BitPacker {
-    PackerType type;
+typedef struct Stream {
+    StreamType type;
 
-    uint32_t* buffer;
-    uint64_t scratch;
+    uint32_t* m_data;
+    uint64_t m_scratch;
 
-    int scratch_bits;
-    int total_bits;
-    int bits_read;
-    int word_index;
-} BitPacker;
+    int m_numBits;
+    int m_bitsProcessed;
+    int m_numWords;
+
+    int m_wordIndex;
+    int m_scratchBits;
+} Stream;
+
+void s_WriteBits(Stream& stream, uint32_t value, int bits)
+{
+    assert(bits > 0);
+    assert(bits <= 32);
+    assert(stream.m_bitsProcessed + bits <= stream.m_numBits);
+
+    value &= (uint64_t(1) << bits) - 1;
+
+    stream.m_scratch |= uint64_t(value) << stream.m_scratchBits;
+
+    stream.m_scratchBits += bits;
+
+    if (stream.m_scratchBits >= 32) {
+        assert(stream.m_wordIndex < stream.m_numWords);
+        stream.m_data[stream.m_wordIndex] = host_to_network(uint32_t(stream.m_scratch & 0xFFFFFFFF));
+        stream.m_scratch >>= 32;
+        stream.m_scratchBits -= 32;
+        stream.m_wordIndex++;
+    }
+
+    stream.m_bitsProcessed += bits;
+}
+
+uint32_t s_ReadBits(Stream& stream, int bits)
+{
+    assert(bits > 0);
+    assert(bits <= 32);
+    assert(stream.m_bitsProcessed + bits <= stream.m_numBits);
+
+    stream.m_bitsProcessed += bits;
+
+    assert(stream.m_scratchBits >= 0 && stream.m_scratchBits <= 64);
+
+    if (stream.m_scratchBits < bits) {
+        assert(stream.m_wordIndex < stream.m_numWords);
+        stream.m_scratch |= uint64_t(network_to_host(stream.m_data[stream.m_wordIndex])) << stream.m_scratchBits;
+        stream.m_scratchBits += 32;
+        stream.m_wordIndex++;
+    }
+
+    assert(stream.m_scratchBits >= bits);
+
+    const uint32_t output = stream.m_scratch & ((uint64_t(1) << bits) - 1);
+
+    stream.m_scratch >>= bits;
+    stream.m_scratchBits -= bits;
+
+    return output;
+}
 
 void WriteBits(BitWriter& writer, uint32_t value, int bits)
 {
