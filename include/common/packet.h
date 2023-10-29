@@ -81,7 +81,6 @@ struct PacketBuffer {
         Advance the current sequence for the packet buffer forward.
         This function removes old packet entries and frees their fragments.z
     */
-
     void Advance(uint16_t sequence)
     {
         if (!protocol2::sequence_greater_than(sequence, currentSequence))
@@ -122,7 +121,6 @@ struct PacketBuffer {
         NOTE: This function is fairly complicated because it must handle all possible cases
         of maliciously constructed packets attempting to overflow and corrupt the packet buffer!
     */
-
     bool ProcessFragment(const uint8_t* fragmentData, int fragmentSize, uint16_t packetSequence, int fragmentId, int numFragmentsInPacket)
     {
         assert(fragmentData);
