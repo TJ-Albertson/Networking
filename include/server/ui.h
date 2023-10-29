@@ -1,10 +1,13 @@
 #ifndef UI_H
 #define UI_H
 
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
+
 #include "imgui/imgui.h"
 #include "imgui/imgui_impl_glfw.h"
 #include "imgui/imgui_impl_opengl3.h"
-#include <GLFW/glfw3.h>
+
 
 GLFWwindow* window;
 
@@ -12,12 +15,22 @@ bool InitializeUi() {
 
     if (!glfwInit())
         return 1;
-    window = glfwCreateWindow(800, 600, "ImGui Example", NULL, NULL);
+
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+
+    window = glfwCreateWindow(1280, 720, "Server", NULL, NULL);
     if (!window)
         return 1;
 
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1);
+
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+        std::cout << "Failed to initialize GLAD" << std::endl;
+    }
 
     // Initialize ImGui
     IMGUI_CHECKVERSION();
@@ -27,8 +40,7 @@ bool InitializeUi() {
 
 }
 
-
-struct ExampleAppConsole {
+struct AppConsole {
     char InputBuf[256];
     ImVector<char*> Items;
     ImVector<const char*> Commands;
@@ -38,7 +50,7 @@ struct ExampleAppConsole {
     bool AutoScroll;
     bool ScrollToBottom;
 
-    ExampleAppConsole()
+    AppConsole()
     {
         ClearLog();
         memset(InputBuf, 0, sizeof(InputBuf));
@@ -51,9 +63,8 @@ struct ExampleAppConsole {
         Commands.push_back("CLASSIFY");
         AutoScroll = true;
         ScrollToBottom = false;
-        AddLog("Welcome to Dear ImGui!");
     }
-    ~ExampleAppConsole()
+    ~AppConsole()
     {
         ClearLog();
         for (int i = 0; i < History.Size; i++)
@@ -117,31 +128,21 @@ struct ExampleAppConsole {
 
     void Draw()
     {
-        
-        //ImGui::SetNextWindowSize(ImVec2(520, 600), ImGuiCond_FirstUseEver);
-
         /*
+        ImGui::SetNextWindowSize(ImVec2(520, 600), ImGuiCond_FirstUseEver);
         if (!ImGui::Begin(title, p_open)) {
             ImGui::End();
             return;
-        }
-        */
+        }*/
 
         // As a specific feature guaranteed by the library, after calling Begin() the last Item represent the title bar.
         // So e.g. IsItemHovered() will return true when hovering the title bar.
         // Here we create a context menu only available from the title bar.
-        
-        
         if (ImGui::BeginPopupContextItem()) {
+            if (ImGui::MenuItem("Close Console"))
+               // *p_open = false;
             ImGui::EndPopup();
         }
-       
-
-        ImGui::TextWrapped(
-            "This example implements a console with basic coloring, completion (TAB key) and history (Up/Down keys). A more elaborate "
-            "implementation may want to store entries along with extra data such as timestamp, emitter, etc.");
-        ImGui::TextWrapped("Enter 'HELP' for help.");
-
         // TODO: display items starting from the bottom
 
         if (ImGui::SmallButton("Add Debug Text")) {
@@ -304,7 +305,7 @@ struct ExampleAppConsole {
     // In C++11 you'd be better off using lambdas for this sort of forwarding callbacks
     static int TextEditCallbackStub(ImGuiInputTextCallbackData* data)
     {
-        ExampleAppConsole* console = (ExampleAppConsole*)data->UserData;
+        AppConsole* console = (AppConsole*)data->UserData;
         return console->TextEditCallback(data);
     }
 
@@ -395,27 +396,13 @@ struct ExampleAppConsole {
     }
 };
 
-void RenderConsoleWindow()
-{
-    static ExampleAppConsole console;
+AppConsole console;
 
-    ImGui::Begin("Parent Window");
-
-    // Create a child window inside the parent window
-    ImGui::BeginChild("ConsoleChildWindow", ImVec2(0, 400), true);
-
-    // Render the console content within the child window
-    console.Draw();
-
-    ImGui::EndChild();
-    ImGui::End();
-}
-
-// Demonstrate creating a window covering the entire screen/viewport
-static void ShowExampleAppFullscreen()
+static void FullScreenApp()
 {
     static bool use_work_area = true;
-    static ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings;
+    // ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar
+    static ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings;
 
     // We demonstrate using the full viewport area or the work area (without menu-bars, task-bars etc.)
     // Based on your use case you may want one or the other.
@@ -423,41 +410,34 @@ static void ShowExampleAppFullscreen()
     ImGui::SetNextWindowPos(use_work_area ? viewport->WorkPos : viewport->Pos);
     ImGui::SetNextWindowSize(use_work_area ? viewport->WorkSize : viewport->Size);
 
-    ImGui::GetStyle().Colors[ImGuiCol_WindowBg] = ImVec4(0.2f, 0.2f, 0.2f, 0.3f);
-
+    //ImGui::GetStyle().Colors[ImGuiCol_WindowBg] = ImVec4(0.2f, 0.2f, 0.2f, 0.3f);
     bool t = true;
-    if (ImGui::Begin("Example: Fullscreen window", &t, flags)) {
-        ImGui::Checkbox("Use work area instead of main area", &use_work_area);
-        ImGui::SameLine();
-        
-
-        ImGui::CheckboxFlags("ImGuiWindowFlags_NoBackground", &flags, ImGuiWindowFlags_NoBackground);
-        ImGui::CheckboxFlags("ImGuiWindowFlags_NoDecoration", &flags, ImGuiWindowFlags_NoDecoration);
-        ImGui::Indent();
-        ImGui::CheckboxFlags("ImGuiWindowFlags_NoTitleBar", &flags, ImGuiWindowFlags_NoTitleBar);
-        ImGui::CheckboxFlags("ImGuiWindowFlags_NoCollapse", &flags, ImGuiWindowFlags_NoCollapse);
-        ImGui::CheckboxFlags("ImGuiWindowFlags_NoScrollbar", &flags, ImGuiWindowFlags_NoScrollbar);
-        ImGui::Unindent();
+    if (!ImGui::Begin("Example: Fullscreen window", &t, flags)) {
+        ImGui::End();
+        return;
     }
     static bool disable_mouse_wheel = false;
     static bool disable_menu = false;
     ImGui::Checkbox("Disable Mouse Wheel", &disable_mouse_wheel);
     ImGui::Checkbox("Disable Menu", &disable_menu);
 
+    // Client List
      ImGui::SeparatorText("Child windows");
     {
         ImGuiWindowFlags window_flags = ImGuiWindowFlags_HorizontalScrollbar;
-        ImGui::BeginChild("ChildL", ImVec2(ImGui::GetContentRegionAvail().x * 0.5f, 260), false, window_flags);
-        for (int i = 0; i < 100; i++)
-            ImGui::Text("%04d: scrollable region", i);
+        ImGui::Text("Clients");
+        ImGui::BeginChild("ClientList", ImVec2(ImGui::GetContentRegionAvail().x * 0.5f, 260), false, window_flags);
+        
+        for (int i = 0; i < 100; i++) {
+            ImGui::Text(" Client[%03d]:", i);
+            ImGui::Text("       position: %f %f %f", 0.0f, 0.0f, 0.0f);
+        }
         ImGui::EndChild();
     }
 
     ImGui::SameLine();
 
-  
-
-     // Child 2: rounded border
+    // Child 2: rounded border
     {
         ImGuiWindowFlags window_flags = ImGuiWindowFlags_None;
         if (disable_mouse_wheel)
@@ -468,7 +448,7 @@ static void ShowExampleAppFullscreen()
         ImGui::BeginChild("ChildR", ImVec2(0, 260), true, window_flags);
         if (!disable_menu && ImGui::BeginMenuBar()) {
             if (ImGui::BeginMenu("Menu")) {
-                //ShowExampleMenuFile();
+                // ShowExampleMenuFile();
                 ImGui::EndMenu();
             }
             ImGui::EndMenuBar();
@@ -486,17 +466,17 @@ static void ShowExampleAppFullscreen()
         ImGui::PopStyleVar();
     }
 
+    ImGui::SeparatorText("Console");
+    // Console
     {
-        ImGui::BeginChild("ChildR2", ImVec2(0, 260), true);
-             ExampleAppConsole console;
-                console.Draw();
+        ImGui::BeginChild("ChildConsole", ImVec2(0, ImGui::GetContentRegionAvail().y), true);
+        console.Draw();
         ImGui::EndChild();
     }
     
 
     ImGui::End();
 }
-
 
 void UiLoop() {
     glfwPollEvents();
@@ -505,14 +485,17 @@ void UiLoop() {
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 
-    // Create your ImGui interface here
+
     //ImGui::ShowDemoWindow();
-    ShowExampleAppFullscreen();
-    //RenderConsoleWindow();
+    FullScreenApp();
+
 
     ImGui::Render();
     int display_w, display_h;
     glfwGetFramebufferSize(window, &display_w, &display_h);
+    glViewport(0, 0, display_w, display_h);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
 
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

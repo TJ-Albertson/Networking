@@ -61,14 +61,19 @@ int CreateAddress(Address& c_address, unsigned char a, unsigned char b, unsigned
     return 1;
 }
 
-void DecodePrintAddress(unsigned int address) {
+char* DecodePrintAddress(unsigned int address) {
 
     unsigned char a = (address >> 24) & 0xFF;
     unsigned char b = (address >> 16) & 0xFF;
     unsigned char c = (address >> 8) & 0xFF;
     unsigned char d = address & 0xFF;
 
-    printf("%d.%d.%d.%d", static_cast<int>(a), static_cast<int>(b), static_cast<int>(c), static_cast<int>(d));
+    //printf("%d.%d.%d.%d", static_cast<int>(a), static_cast<int>(b), static_cast<int>(c), static_cast<int>(d));
+
+    char buffer[20]; // Make sure the buffer is large enough to hold your formatted string
+    sprintf(buffer, "%d.%d.%d.%d", static_cast<int>(a), static_cast<int>(b), static_cast<int>(c), static_cast<int>(d));
+
+    return buffer;
 }
 
 #endif

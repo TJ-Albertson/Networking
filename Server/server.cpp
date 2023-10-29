@@ -1,5 +1,6 @@
 #include <iostream>
 #include <map>
+#include <time.h>
 
 #include "socket.h"
 #include "ui.h"
@@ -12,7 +13,7 @@ typedef struct Client {
 };
 
 // ip address and time
-std::map<unsigned int, float> clients;
+std::map<unsigned int, time_t> clients;
 
 
 const int MaxClients = 64;
@@ -42,7 +43,6 @@ int FindExistingClientIndex(Server server, Address& address)
     return -1;
 }
 
-
 int main()
 {
     InitializeSockets();
@@ -56,7 +56,7 @@ int main()
         return false;
     }
 
-    printf("[SERVER] Server started listening on port %d\n", port);
+    console.AddLog("[SERVER] Server started listening on port %d\n", port);
 
     /*
     uint32_t local_sequence;
@@ -97,6 +97,9 @@ int main()
     }
 
     while (!glfwWindowShouldClose(window)) {
+
+        time_t currentTime;
+        time(&currentTime);
 
         UiLoop();
 
@@ -153,25 +156,23 @@ int main()
             // Check ip address
             if (clients.find(sender.address) != clients.end()) {
                 // Refresh time
-                clients[sender.address] = 10.0f;
+                clients[sender.address] = currentTime;
             } else {
-                printf("[SERVER] Client at ");
-                DecodePrintAddress(sender.address);
-                printf(" connected\n", sender.address);
-
-                clients[sender.address] = 10.0f;
+                char* decode_addr = DecodePrintAddress(sender.address);
+                console.AddLog("[SERVER] Client at %s connected", decode_addr);      
+                clients[sender.address] = currentTime;
             }
 
-            printf("[Client %d]\n", sender.address);
+            console.AddLog("[Client %d] Message;", sender.address);
 
-            printf("numElements: %d\n", packet.numElements);
+            console.AddLog("  numElements: %d", packet.numElements);
             for (int i = 0; i < packet.numElements; ++i) {
-                printf("elements[%d]: %d\n", i, packet.elements[i]);
-            }
+                console.AddLog("   elements[%d]: %d", i, packet.elements[i]);
+            }   
             
-            printf("    packet.x: %d\n", packet_2.x);
-            printf("    packet.y: %d\n", packet_2.y);
-            printf("    packet.z: %d\n", packet_2.z);
+            console.AddLog("  packet.x: %d", packet_2.x);
+            console.AddLog("  packet.y: %d", packet_2.y);
+            console.AddLog("  packet.z: %d", packet_2.z);
             
             /*
             printf("[Client %d] %s\n", sender.address, data);
@@ -182,10 +183,11 @@ int main()
 
         // Disconnect old clients
         for (auto it = clients.begin(); it != clients.end();) {
-            if (it->second <= 0.0f) {
-                printf("[SERVER] Client at ");
-                DecodePrintAddress(it->first);
-                printf(" disconnected: TIMEOUT\n", it->first);
+
+            if ( difftime(currentTime, it->second) > 10.0f ) {
+
+                char* decode_addr = DecodePrintAddress(it->first);
+                console.AddLog("[SERVER] Client at %s disconnected: TIMEOUT", decode_addr);
 
                 it = clients.erase(it); // Advance the iterator after erasing
             } else {

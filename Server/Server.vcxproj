@@ -145,6 +145,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\include\server\glad\glad.c" />
     <ClCompile Include="..\include\server\imgui\imgui.cpp" />
     <ClCompile Include="..\include\server\imgui\imgui_demo.cpp" />
     <ClCompile Include="..\include\server\imgui\imgui_draw.cpp" />
