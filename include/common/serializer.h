@@ -160,6 +160,45 @@ bool WouldOverflow(BitReader reader, int bits)
     return reader.total_bits_read + bits > reader.total_bits;
 }
 
+
+ bool SerializeBits(BitPacker& bp, uint32_t& value, int bits) {
+
+     assert(bits > 0);
+     assert(bits <= 32);
+
+     if (bp.type == WRITER) {
+        
+        WriteBits(bp, value, bits);
+        return true;
+     }
+
+     else if (bp.type == READER) {
+
+        if (WouldOverflow(bp, bits)) {
+            return false;
+        }
+        uint32_t read_value = ReadBits(bp, bits);
+        value = read_value;
+        bp.m_bitsRead += bits;
+        return true;
+     }
+ }
+
+	#define serialize_bits(stream, value, bits)            \
+    do {                                               \
+        assert(bits > 0);                              \
+        assert(bits <= 32);                            \
+        uint32_t uint32_value;                         \
+        if (stream.type == WRITING)                         \
+            uint32_value = (uint32_t)value;            \
+        if (SerializeBits(stream, uint32_value, bits)) \
+            return false;                              \
+        if (stream.type == READING)                         \
+            value = uint32_value;                      \
+    } while (0)
+
+
+
 bool ReadSerializeBits(BitReader& reader, uint32_t& value, int bits)
 {
     assert(bits > 0);
