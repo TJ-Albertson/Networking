@@ -1,7 +1,8 @@
-#include "socket.h"
 #include <iostream>
-
 #include <map>
+
+#include "socket.h"
+#include "ui.h"
 
 const uint32_t protocol_id = 57;
 
@@ -90,7 +91,15 @@ int main()
     
     */
 
-    while (true) {
+    if (!InitializeUi()) {
+        printf("Failed to initialize UI\n");
+        return 0;
+    }
+
+    while (!glfwWindowShouldClose(window)) {
+
+        UiLoop();
+
         Address sender;
 
         unsigned char buffer[256];
@@ -187,4 +196,6 @@ int main()
         //printf("%d buffer: %s\n", prefix, data);
         // process packet
     }
+
+     CleanUpUi();
 }

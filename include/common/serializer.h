@@ -256,7 +256,7 @@ bool WriteSerializeInteger(BitWriter& writer, int32_t value, int32_t min, int32_
 
 
 
-
+/*
 
 bool ReadAlign(BitReader& reader)
 {
@@ -312,7 +312,7 @@ bool WriteSerializeAlign()
     return true;
 }
 
-
+*/
   #define write_serialize_align(write)       \
     do {                              \
         if (!stream.SerializeAlign()) \
