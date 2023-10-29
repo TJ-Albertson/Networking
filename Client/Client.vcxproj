@@ -160,6 +160,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\common\address.h" />
+    <ClInclude Include="..\include\common\chunk.h" />
     <ClInclude Include="..\include\common\fragment.h" />
     <ClInclude Include="..\include\common\hash.h" />
     <ClInclude Include="..\include\common\packet.h" />

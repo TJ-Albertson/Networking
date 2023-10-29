@@ -50,5 +50,8 @@
     <ClInclude Include="..\include\common\hash.h">
       <Filter>Common</Filter>
     </ClInclude>
+    <ClInclude Include="..\include\common\chunk.h">
+      <Filter>Common</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

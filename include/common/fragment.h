@@ -68,7 +68,7 @@ struct FragmentPacket {
         return true;
     }
 
-    bool Serialize(BitReader& writer)
+    bool WriteSerialize(BitReader& writer)
     {
         serialize_bits(stream, crc32, 32);
         serialize_bits(stream, sequence, 16);
