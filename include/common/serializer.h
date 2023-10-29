@@ -92,11 +92,63 @@ typedef struct Stream {
 
     int m_numBits;
     int m_bitsProcessed;
-    int m_numWords;
 
     int m_wordIndex;
     int m_scratchBits;
 } Stream;
+
+
+bool InitWriteStream(Stream& stream, void* data, int bytes)
+{
+    assert(data);
+    assert((bytes % 4) == 0); // buffer size must be a multiple of four
+
+    stream.type == WRITE;
+    stream.m_data == (const uint32_t*)data;
+    stream.m_numBits == bytes * 8;
+
+    stream.m_bitsProcessed = 0;
+    stream.m_scratch = 0;
+    stream.m_scratchBits = 0;
+    stream.m_wordIndex = 0;
+
+    return true;
+}
+
+bool InitReadStream(Stream& stream, const void* data, int bytes)
+{
+    assert(data);
+    
+    stream.type == READ;
+    stream.m_data == (const uint32_t*)data;
+    stream.m_numBits == bytes * 8;
+
+    stream.m_bitsProcessed = 0;
+    stream.m_scratch = 0;
+    stream.m_scratchBits = 0;
+    stream.m_wordIndex = 0;
+
+    return true;
+}
+
+
+inline uint32_t host_to_network(uint32_t value)
+{
+#if PROTOCOL2_BIG_ENDIAN
+    return bswap(value);
+#else // #if PROTOCOL2_BIG_ENDIAN
+    return value;
+#endif // #if PROTOCOL2_BIG_ENDIAN
+}
+
+inline uint32_t network_to_host(uint32_t value)
+{
+#if PROTOCOL2_BIG_ENDIAN
+    return bswap(value);
+#else // #if PROTOCOL2_BIG_ENDIAN
+    return value;
+#endif // #if PROTOCOL2_BIG_ENDIAN
+}
 
 void s_WriteBits(Stream& stream, uint32_t value, int bits)
 {
@@ -111,7 +163,6 @@ void s_WriteBits(Stream& stream, uint32_t value, int bits)
     stream.m_scratchBits += bits;
 
     if (stream.m_scratchBits >= 32) {
-        assert(stream.m_wordIndex < stream.m_numWords);
         stream.m_data[stream.m_wordIndex] = host_to_network(uint32_t(stream.m_scratch & 0xFFFFFFFF));
         stream.m_scratch >>= 32;
         stream.m_scratchBits -= 32;
@@ -132,7 +183,6 @@ uint32_t s_ReadBits(Stream& stream, int bits)
     assert(stream.m_scratchBits >= 0 && stream.m_scratchBits <= 64);
 
     if (stream.m_scratchBits < bits) {
-        assert(stream.m_wordIndex < stream.m_numWords);
         stream.m_scratch |= uint64_t(network_to_host(stream.m_data[stream.m_wordIndex])) << stream.m_scratchBits;
         stream.m_scratchBits += 32;
         stream.m_wordIndex++;
@@ -146,6 +196,16 @@ uint32_t s_ReadBits(Stream& stream, int bits)
     stream.m_scratchBits -= bits;
 
     return output;
+}
+
+void s_FlushBits(Stream& stream)
+{
+    if (stream.m_scratchBits != 0) {
+        stream.m_data[stream.m_wordIndex] = host_to_network(uint32_t(stream.m_scratch & 0xFFFFFFFF));
+        stream.m_scratch >>= 32;
+        stream.m_scratchBits -= 32;
+        stream.m_wordIndex++;
+    }
 }
 
 void WriteBits(BitWriter& writer, uint32_t value, int bits)
@@ -214,41 +274,47 @@ bool WouldOverflow(BitReader reader, int bits)
     return reader.total_bits_read + bits > reader.total_bits;
 }
 
+// Intended for read stream only
+bool s_WouldOverflow(Stream stream, int bits)
+{
+    return stream.m_bitsProcessed + bits > stream.m_numBits;
+}
 
- bool SerializeBits(BitPacker& bp, uint32_t& value, int bits) {
+ bool SerializeBits(Stream& stream, uint32_t& value, int bits) {
 
      assert(bits > 0);
      assert(bits <= 32);
 
-     if (bp.type == WRITER) {
+     if (stream.type == WRITE) {
         
-        WriteBits(bp, value, bits);
+        s_WriteBits(stream, value, bits);
         return true;
      }
 
-     else if (bp.type == READER) {
+     if (stream.type == READ) {
 
-        if (WouldOverflow(bp, bits)) {
+        if (s_WouldOverflow(stream, bits)) {
             return false;
         }
-        uint32_t read_value = ReadBits(bp, bits);
+
+        uint32_t read_value = s_ReadBits(stream, bits);
         value = read_value;
-        bp.m_bitsRead += bits;
+        stream.m_bitsProcessed += bits;
         return true;
      }
  }
 
-	#define serialize_bits(stream, value, bits)            \
-    do {                                               \
-        assert(bits > 0);                              \
-        assert(bits <= 32);                            \
-        uint32_t uint32_value;                         \
-        if (stream.type == WRITING)                         \
-            uint32_value = (uint32_t)value;            \
-        if (SerializeBits(stream, uint32_value, bits)) \
-            return false;                              \
-        if (stream.type == READING)                         \
-            value = uint32_value;                      \
+	#define serialize_bits(stream, value, bits)             \
+    do {                                                    \
+        assert(bits > 0);                                   \
+        assert(bits <= 32);                                 \
+        uint32_t uint32_value;                              \
+        if (stream.type == WRITE)                           \
+            uint32_value = (uint32_t)value;                 \
+        if (SerializeBits(stream, uint32_value, bits))      \
+            return false;                                   \
+        if (stream.type == READ)                            \
+            value = uint32_value;                           \
     } while (0)
 
 
