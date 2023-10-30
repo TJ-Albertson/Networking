@@ -234,44 +234,36 @@ struct PacketBuffer {
         assert(fragmentData);
 
         // fragment size is <= zero? discard the fragment.
-
         if (fragmentSize <= 0)
             return false;
 
         // fragment size exceeds max fragment size? discard the fragment.
-
         if (fragmentSize > MaxFragmentSize)
             return false;
 
         // num fragments outside of range? discard the fragment
-
         if (numFragmentsInPacket <= 0 || numFragmentsInPacket > MaxFragmentsPerPacket)
             return false;
 
         // fragment index out of range? discard the fragment
-
         if (fragmentId < 0 || fragmentId >= numFragmentsInPacket)
             return false;
 
         // if this is not the last fragment in the packet and fragment size is not equal to MaxFragmentSize, discard the fragment
-
         if (fragmentId != numFragmentsInPacket - 1 && fragmentSize != MaxFragmentSize)
             return false;
 
         // packet sequence number wildly out of range from the current sequence? discard the fragment
-
         if (sequence_difference(packetSequence, currentSequence) > 1024)
             return false;
 
         // if the entry exists, but has a different sequence number, discard the fragment
-
         const int index = packetSequence % PacketBufferSize;
 
         if (valid[index] && entries[index].sequence != packetSequence)
             return false;
 
         // if the entry does not exist, add an entry for this sequence # and set total fragments
-
         if (!valid[index]) {
             Advance(packetSequence);
             entries[index].sequence = packetSequence;
@@ -281,17 +273,14 @@ struct PacketBuffer {
         }
 
         // at this point the entry must exist and have the same sequence number as the fragment
-
         assert(valid[index]);
         assert(entries[index].sequence == packetSequence);
 
         // if the total number fragments is different for this packet vs. the entry, discard the fragment
-
         if (numFragmentsInPacket != (int)entries[index].numFragments)
             return false;
 
         // if this fragment has already been received, ignore it because it must have come from a duplicate packet
-
         assert(fragmentId < numFragmentsInPacket);
         assert(fragmentId < MaxFragmentsPerPacket);
         assert(numFragmentsInPacket <= MaxFragmentsPerPacket);
@@ -300,7 +289,6 @@ struct PacketBuffer {
             return false;
 
         // add the fragment to the packet buffer
-
         printf("added fragment %d of packet %d to buffer\n", fragmentId, packetSequence);
 
         assert(fragmentSize > 0);
