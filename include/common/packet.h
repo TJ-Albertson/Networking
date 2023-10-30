@@ -354,15 +354,14 @@ struct PacketBuffer {
             const int index = sequence % PacketBufferSize;
 
             if (valid[index] && entries[index].sequence == sequence) {
-                // have all fragments arrived for this packet?
 
+                // have all fragments arrived for this packet?
                 if (entries[index].receivedFragments != entries[index].numFragments)
                     continue;
 
                 printf("received all fragments for packet %d [%d]\n", sequence, entries[index].numFragments);
 
                 // what's the total size of this packet?
-
                 int packetSize = 0;
                 for (int j = 0; j < (int)entries[index].numFragments; ++j) {
                     packetSize += entries[index].fragmentSize[j];
@@ -372,14 +371,12 @@ struct PacketBuffer {
                 assert(packetSize <= MaxPacketSize);
 
                 // allocate a packet to return to the caller
-
                 PacketData& packet = packetData[numPackets++];
 
                 packet.size = packetSize;
                 packet.data = new uint8_t[packetSize];
 
                 // reconstruct the packet from the fragments
-
                 printf("reassembling packet %d from fragments (%d bytes)\n", sequence, packetSize);
 
                 uint8_t* dst = packet.data;
@@ -389,14 +386,12 @@ struct PacketBuffer {
                 }
 
                 // free all fragments
-
                 for (int j = 0; j < (int)entries[index].numFragments; ++j) {
                     delete[] entries[index].fragmentData[j];
                     numBufferedFragments--;
                 }
 
                 // clear the packet buffer entry
-
                 memset(&entries[index], 0, sizeof(PacketBufferEntry));
 
                 valid[index] = false;
@@ -633,6 +628,7 @@ void SendPacket() {
     // Create packet with crc32, sequence, packet type, and data
 
     // if total packet size larger than [size] then fragment packet
+    uint8_t buffer[MaxPacketSize];
 
 
     if (bytesWritten > MaxFragmentSize) {
@@ -640,30 +636,34 @@ void SendPacket() {
         PacketData fragmentPackets[MaxFragmentsPerPacket];
         SplitPacketIntoFragments(sequence, buffer, bytesWritten, numFragments, fragmentPackets);
 
+
         for (int j = 0; j < numFragments; ++j)
-            packetBuffer.ProcessPacket(fragmentPackets[j].data, fragmentPackets[j].size);
+            //  send fragments
+
+            SendPacket(fragmentPackets[j].data, fragmentPackets[j].size);
+            
+            //  //packetBuffer.ProcessPacket(fragmentPackets[j].data, fragmentPackets[j].size);
     } else {
         printf("sending packet %d as a regular packet\n", sequence);
 
-        packetBuffer.ProcessPacket(buffer, bytesWritten);
+        //packetBuffer.ProcessPacket(buffer, bytesWritten);
     }
 
-    //send buffer
 }
 
 void RecievePackets() {
 
+    uint8_t buffer[MaxPacketSize];
+
     int numPackets = 0;
     PacketData packets[PacketBufferSize];
-    packetBuffer.ReceivePackets(numPackets, packets);
+    //packetBuffer.ReceivePackets(numPackets, packets);
     uint16_t local_sequence = 0;
     uint16_t remote_sequence = 0;
 
     while(1) {
 
-        TestPacketHeader readPacketHeader;
-        protocol2::Packet* readPacket = protocol2::ReadPacket(info, buffer, bytesWritten, &readPacketHeader, &readError);
-
+        packetBuffer.ProcessPacket(buffer, bytesWritten);
 
         uint8_t buffer[MaxPacketSize];
         int bufferSize;
