@@ -665,6 +665,10 @@ void RecievePackets() {
 
         packetBuffer.ProcessPacket(buffer, bytesWritten);
 
+        int numPackets = 0;
+        PacketData packets[PacketBufferSize];
+        packetBuffer.ReceivePackets(numPackets, packets);
+
         uint8_t buffer[MaxPacketSize];
         int bufferSize;
         Header header;
