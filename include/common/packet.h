@@ -668,6 +668,8 @@ void RecievePackets() {
     int numPackets = 0;
     PacketData packets[PacketBufferSize];
     packetBuffer.ReceivePackets(numPackets, packets);
+    uint16_t local_sequence = 0;
+    uint16_t remote_sequence = 0;
 
     while(1) {
 
@@ -679,21 +681,14 @@ void RecievePackets() {
         int bufferSize;
         Header header;
 
+        ReadPacket(buffer, bufferSize, header);
 
-        if (readPacket) {
-            printf("read packet type %d (%d bytes)\n", readPacket->GetType(), bytesWritten);
-
-            if (!CheckPacketsAreIdentical(readPacket, writePacket, readPacketHeader, writePacketHeader)) {
-                printf("failure: read packet is not the same as written packet. something wrong with serialize function?\n");
-                error = true;
-            } else {
-                printf("success: read packet %d matches written packet %d\n", readPacketHeader.sequence, writePacketHeader.sequence);
-            }
-        } else {
-            printf("read packet error: %s\n", protocol2::GetErrorString(readError));
-
-            error = true;
+        if (header.crc != packetInfo.crc) {
+            
         }
+
+        remote.sequence = header.sequence;
+
 
     }
 }
