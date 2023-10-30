@@ -208,6 +208,15 @@ void s_FlushBits(Stream& stream)
     }
 }
 
+int GetBytesProcessed(Stream& stream)
+{
+    return (stream.m_bitsProcessed + 7) / 8;
+}
+
+int GetBitsRemaining(Stream& stream)
+{
+    return stream.m_numBits - stream.m_bitsProcessed;
+}
 
 bool s_WouldOverflow(Stream stream, int bits)
 {

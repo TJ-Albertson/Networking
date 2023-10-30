@@ -2,6 +2,7 @@
 #define PACKET_H
 
 #include "serializer.h"
+#include "hash.h"
 
 struct PacketA {
     int x, y, z;
@@ -86,8 +87,8 @@ struct FragmentPacket{
         serialize_align(stream);
 
         if (stream.type == READ) {
-            assert((stream.GetBitsRemaining() % 8) == 0);
-            fragmentSize = stream.GetBitsRemaining() / 8;
+            assert((GetBitsRemaining(stream) % 8) == 0);
+            fragmentSize = GetBitsRemaining(stream) / 8;
             if (fragmentSize <= 0 || fragmentSize > MaxFragmentSize) {
                 printf("packet fragment size is out of bounds (%d)\n", fragmentSize);
                 return false;
@@ -309,7 +310,7 @@ struct PacketBuffer {
         }
 
         uint32_t protocolId = host_to_network(ProtocolId);
-        uint32_t crc32 = calculate_crc32((const uint8_t*)&protocolId, 4);
+        uint32_t crc32 = calculate_crc32((const uint8_t*)&protocolId, 4, 0);
         uint32_t zero = 0;
         crc32 = calculate_crc32((const uint8_t*)&zero, 4, crc32);
         crc32 = calculate_crc32(data + 4, size - 4, crc32);
@@ -443,14 +444,14 @@ bool SplitPacketIntoFragments(uint16_t sequence, const uint8_t* packetData, int 
         s_FlushBits(writer);
 
         uint32_t protocolId = host_to_network(ProtocolId);
-        uint32_t crc32 = calculate_crc32((uint8_t*)&protocolId, 4);
-        crc32 = calculate_crc32(fragmentPackets[i].data, stream.GetBytesProcessed(), crc32);
+        uint32_t crc32 = calculate_crc32((uint8_t*)&protocolId, 4, 0);
+        crc32 = calculate_crc32(fragmentPackets[i].data, GetBytesProcessed(writer), crc32);
 
         *((uint32_t*)fragmentPackets[i].data) = host_to_network(crc32);
 
-        printf("fragment packet %d: %d bytes\n", i, stream.GetBytesProcessed());
+        printf("fragment packet %d: %d bytes\n", i, GetBytesProcessed(writer));
 
-        fragmentPackets[i].size = stream.GetBytesProcessed();
+        fragmentPackets[i].size = GetBytesProcessed(writer);
 
         src += fragmentSize;
     }
