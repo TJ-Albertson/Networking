@@ -12,6 +12,29 @@ const int MaxPacketSize = MaxFragmentSize * MaxFragmentsPerPacket;
 const int PacketFragmentHeaderBytes = 16;
 
 
+struct PacketInfo {
+    bool rawFormat; // if true packets are written in "raw" format without crc32 (useful for encrypted packets).
+    int prefixBytes; // prefix this number of bytes when reading and writing packets. stick your own data there.
+    uint32_t protocolId; // protocol id that distinguishes your protocol from other packets sent over UDP.
+    //PacketFactory* packetFactory; // create packets and determine information about packet types. required.
+    const uint8_t* allowedPacketTypes; // array of allowed packet types. if a packet type is not allowed the serialize read or write will fail.
+    void* context; // context for the packet serialization (optional, pass in NULL)
+
+    PacketInfo()
+    {
+        rawFormat = false;
+        prefixBytes = 0;
+        protocolId = 0;
+        //packetFactory = NULL;
+        allowedPacketTypes = NULL;
+        context = NULL;
+    }
+};
+
+PacketInfo packetInfo;
+
+
+
 struct PacketA {
     int x, y, z;
 
@@ -48,6 +71,23 @@ enum TestPacketTypes {
     TEST_PACKET_NUM_TYPES
 };
 
+/*
+[protocol id] (32 bits)   // not actually sent, but used to calc crc32
+[crc32] (32 bits)
+[sequence] (16 bits)
+[packet type = 0] (2 bits)
+[fragment id] (8 bits)
+[num fragments] (8 bits)
+[pad zero bits to nearest byte index]
+<fragment data>
+
+*/
+
+struct PacketHeader {
+    uint32_t crc32;
+    uint16_t sequence;
+};
+
 struct FragmentPacket{
     // input/output
 
@@ -60,6 +100,7 @@ struct FragmentPacket{
     int packetType;
     uint8_t fragmentId;
     uint8_t numFragments;
+
     uint8_t fragmentData[MaxFragmentSize];
 
     bool Serialize(Stream& stream)
@@ -376,6 +417,8 @@ struct PacketBuffer {
     }
 };
 
+static PacketBuffer packetBuffer;
+
 bool SplitPacketIntoFragments(uint16_t sequence, const uint8_t* packetData, int packetSize, int& numFragments, PacketData fragmentPackets[])
 {
     numFragments = 0;
@@ -443,5 +486,217 @@ bool SplitPacketIntoFragments(uint16_t sequence, const uint8_t* packetData, int 
 
     return true;
 }
+
+
+    int WritePacket(const PacketInfo& info,
+    Packet* packet,
+    uint8_t* buffer,
+    int bufferSize,
+    Object* header)
+{
+    assert(packet);
+    assert(buffer);
+    assert(bufferSize > 0);
+    assert(info.protocolId);
+    assert(info.packetFactory);
+
+    const int numPacketTypes = info.packetFactory->GetNumPacketTypes();
+
+
+    Stream writeStream;
+    InitWriteStream(writeStream, buffer, bufferSize);
+
+    //stream.SetContext(info.context);
+
+    for (int i = 0; i < info.prefixBytes; ++i) {
+        uint32_t zero = 0;
+        SerializeBits(writeStream, zero, 8);
+    }
+
+    uint32_t crc32 = 0;
+
+    if (!info.rawFormat)
+        SerializeBits(writeStream, crc32, 32);
+
+    if (header) {
+        if (!header->SerializeInternal(stream))
+            return 0;
+    }
+
+    int packetType = packet->GetType();
+
+    assert(numPacketTypes > 0);
+
+    if (numPacketTypes > 1) {
+        SerializeInteger(writeStream, packetType, 0, numPacketTypes - 1);
+    }
+
+    if (!packet->SerializeInternal(stream))
+        return 0;
+
+    stream.SerializeCheck("end of packet");
+
+    stream.Flush();
+
+    if (!info.rawFormat) {
+        uint32_t network_protocolId = host_to_network(info.protocolId);
+        crc32 = calculate_crc32((uint8_t*)&network_protocolId, 4, 0);
+        crc32 = calculate_crc32(buffer + info.prefixBytes, stream.GetBytesProcessed() - info.prefixBytes, crc32);
+        *((uint32_t*)(buffer + info.prefixBytes)) = host_to_network(crc32);
+    }
+
+    if (stream.GetError())
+        return 0;
+
+    return stream.GetBytesProcessed();
+}
+
+
+/*
+
+[protocol id] (32 bits)   // not actually sent, but used to calc crc32
+[crc32] (32 bits)
+[sequence] (16 bits)
+[packet type = 0] (2 bits)
+[fragment id] (8 bits)
+[num fragments] (8 bits)
+[pad zero bits to nearest byte index]
+<fragment data>
+
+*/
+
+void ReadPacket(
+    const uint8_t* buffer,
+    int bufferSize,
+    Object* header,
+    int* errorCode)
+{
+    assert(buffer);
+    assert(bufferSize > 0);
+
+    Stream readStream;
+    InitReadStream(readStream, buffer, bufferSize);
+
+    //stream.SetContext(info.context);
+
+    for (int i = 0; i < packetInfo.prefixBytes; ++i) {
+        uint32_t dummy = 0;
+        SerializeBits(readStream, dummy, 8);
+    }
+
+    uint32_t read_crc32 = 0;
+    if (!packetInfo.rawFormat) {
+        SerializeBits(readStream, read_crc32, 32);
+
+        uint32_t network_protocolId = host_to_network(packetInfo.protocolId);
+        uint32_t crc32 = calculate_crc32((const uint8_t*)&network_protocolId, 4, 0);
+        uint32_t zero = 0;
+
+        crc32 = calculate_crc32((const uint8_t*)&zero, 4, crc32);
+        crc32 = calculate_crc32(buffer + packetInfo.prefixBytes + 4, bufferSize - 4 - packetInfo.prefixBytes, crc32);
+
+        if (crc32 != read_crc32) {
+            printf("corrupt packet. expected crc32 %x, got %x\n", crc32, read_crc32);
+            return;
+        }
+    }
+
+
+    uint16_t sequence = 0;
+    SerializeBits(readStream, sequence, 16);
+
+
+    int packetType = 0;
+
+    const int numPacketTypes = TEST_PACKET_NUM_TYPES;
+
+    assert(numPacketTypes > 0);
+
+    if (numPacketTypes > 1) {
+        if (!SerializeInteger(readStream, packetType, 0, numPacketTypes - 1)) {
+            printf("Invalid PacketType: %d\n", packetType);
+            return;
+        }
+    }
+
+    if (packetInfo.allowedPacketTypes) {
+        if (!packetInfo.allowedPacketTypes[packetType]) {
+            if (errorCode)
+                printf("PacketType not allowed: %d\n", packetType);
+            return;
+        }
+    }
+
+
+#if PROTOCOL2_SERIALIZE_CHECKS
+    if (!stream.SerializeCheck("end of packet")) {
+        if (errorCode)
+            *errorCode = PROTOCOL2_ERROR_SERIALIZE_CHECK_FAILED;
+        goto cleanup;
+    }
+#endif // #if PROTOCOL2_SERIALIZE_CHECKS
+
+    return;
+}
+
+
+void SendPacket() {
+
+    // Create packet with crc32, sequence, packet type, and data
+
+    // if total packet size larger than [size] then fragment packet
+
+
+    if (bytesWritten > MaxFragmentSize) {
+        int numFragments;
+        PacketData fragmentPackets[MaxFragmentsPerPacket];
+        SplitPacketIntoFragments(sequence, buffer, bytesWritten, numFragments, fragmentPackets);
+
+        for (int j = 0; j < numFragments; ++j)
+            packetBuffer.ProcessPacket(fragmentPackets[j].data, fragmentPackets[j].size);
+    } else {
+        printf("sending packet %d as a regular packet\n", sequence);
+
+        packetBuffer.ProcessPacket(buffer, bytesWritten);
+    }
+
+    //send buffer
+}
+
+void RecievePackets() {
+
+    int numPackets = 0;
+    PacketData packets[PacketBufferSize];
+    packetBuffer.ReceivePackets(numPackets, packets);
+
+    while(1) {
+
+        TestPacketHeader readPacketHeader;
+        protocol2::Packet* readPacket = protocol2::ReadPacket(info, buffer, bytesWritten, &readPacketHeader, &readError);
+
+
+        uint8_t buffer[MaxPacketSize];
+        int bufferSize;
+        Header header;
+
+
+        if (readPacket) {
+            printf("read packet type %d (%d bytes)\n", readPacket->GetType(), bytesWritten);
+
+            if (!CheckPacketsAreIdentical(readPacket, writePacket, readPacketHeader, writePacketHeader)) {
+                printf("failure: read packet is not the same as written packet. something wrong with serialize function?\n");
+                error = true;
+            } else {
+                printf("success: read packet %d matches written packet %d\n", readPacketHeader.sequence, writePacketHeader.sequence);
+            }
+        } else {
+            printf("read packet error: %s\n", protocol2::GetErrorString(readError));
+
+            error = true;
+        }
+
+    }
+}
+
 
 #endif
