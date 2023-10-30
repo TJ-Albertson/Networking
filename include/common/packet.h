@@ -4,6 +4,14 @@
 #include "serializer.h"
 #include "hash.h"
 
+
+const int PacketBufferSize = 256; // size of packet buffer, eg. number of historical packets for which we can buffer fragments
+const int MaxFragmentSize = 1024; // maximum size of a packet fragment
+const int MaxFragmentsPerPacket = 256; // maximum number of fragments per-packet
+const int MaxPacketSize = MaxFragmentSize * MaxFragmentsPerPacket;
+const int PacketFragmentHeaderBytes = 16;
+
+
 struct PacketA {
     int x, y, z;
 
@@ -104,12 +112,6 @@ struct FragmentPacket{
     }
 };
 
-
-const int PacketBufferSize = 256; // size of packet buffer, eg. number of historical packets for which we can buffer fragments
-const int MaxFragmentSize = 1024; // maximum size of a packet fragment
-const int MaxFragmentsPerPacket = 256; // maximum number of fragments per-packet
-const int MaxPacketSize = MaxFragmentSize * MaxFragmentsPerPacket;
-const int PacketFragmentHeaderBytes = 16;
 
 inline bool sequence_greater_than(uint16_t s1, uint16_t s2)
 {

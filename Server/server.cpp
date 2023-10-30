@@ -96,10 +96,16 @@ int main()
         return 0;
     }
 
+    struct tm* timeInfo;
+    time_t currentTime;
+    char timeString[20];
+
     while (!glfwWindowShouldClose(window)) {
 
-        time_t currentTime;
+        
         time(&currentTime);
+        timeInfo = localtime(&currentTime);
+        strftime(timeString, 20, "%H:%M:%S", timeInfo);
 
         UiLoop();
 
@@ -159,11 +165,11 @@ int main()
                 clients[sender.address] = currentTime;
             } else {
                 char* decode_addr = DecodePrintAddress(sender.address);
-                console.AddLog("[SERVER] Client at %s connected", decode_addr);      
+                console.AddLog("[%s INFO]: Client at %s connected", timeString, decode_addr);      
                 clients[sender.address] = currentTime;
             }
 
-            console.AddLog("[Client %d] Message;", sender.address);
+            console.AddLog("[%s INFO]: Client %d Message,", timeString, sender.address);
 
             console.AddLog("  numElements: %d", packet.numElements);
             for (int i = 0; i < packet.numElements; ++i) {
@@ -187,7 +193,7 @@ int main()
             if ( difftime(currentTime, it->second) > 10.0f ) {
 
                 char* decode_addr = DecodePrintAddress(it->first);
-                console.AddLog("[SERVER] Client at %s disconnected: TIMEOUT", decode_addr);
+                console.AddLog("[%s INFO]: Client at %s disconnected: TIMEOUT", timeString, decode_addr);
 
                 it = clients.erase(it); // Advance the iterator after erasing
             } else {

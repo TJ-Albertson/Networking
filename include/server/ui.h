@@ -21,7 +21,7 @@ bool InitializeUi() {
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
 
-    window = glfwCreateWindow(1280, 720, "Server", NULL, NULL);
+    window = glfwCreateWindow(1280, 900, "Server", NULL, NULL);
     if (!window)
         return 1;
 
