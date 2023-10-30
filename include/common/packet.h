@@ -15,19 +15,11 @@ const int PacketFragmentHeaderBytes = 16;
 struct PacketA {
     int x, y, z;
 
-    bool ReadSerialize(BitReader& reader)
+    bool Serialize(Stream& stream)
     {
-        read_serialize_bits(reader, x, 32);
-        read_serialize_bits(reader, y, 32);
-        read_serialize_bits(reader, z, 32);
-        return true;
-    }
-
-    bool WriteSerialize(BitWriter& writer)
-    {
-        write_serialize_bits(writer, x, 32);
-        write_serialize_bits(writer, y, 32);
-        write_serialize_bits(writer, z, 32);
+        serialize_bits(stream, x, 32);
+        serialize_bits(stream, y, 32);
+        serialize_bits(stream, z, 32);
         return true;
     }
 };
@@ -36,33 +28,12 @@ struct PacketB {
     int numElements;
     int elements[MaxElements];
 
-    bool ReadSerialize(BitReader& reader)
-    {
-        read_serialize_int(reader, numElements, 0, MaxElements);
-        for (int i = 0; i < numElements; ++i) {
-            read_serialize_bits(reader, elements[i], 32);
-        }
-        return true;
-    }
-
-    bool WriteSerialize(BitWriter& writer)
-    {
-        write_serialize_int(writer, numElements, 0, MaxElements);
-        for (int i = 0; i < numElements; ++i) {
-            write_serialize_bits(writer, elements[i], 32);
-        }
-        return true;
-    }
-};
-
-struct PacketC {
-    int x, y, z;
-
     bool Serialize(Stream& stream)
     {
-        serialize_bits(stream, x, 32);
-        serialize_bits(stream, y, 32);
-        serialize_bits(stream, z, 32);
+        serialize_int(stream, numElements, 0, MaxElements);
+        for (int i = 0; i < numElements; ++i) {
+            serialize_bits(stream, elements[i], 32);
+        }
         return true;
     }
 };
@@ -217,7 +188,6 @@ struct PacketBuffer {
         NOTE: This function is fairly complicated because it must handle all possible cases
         of maliciously constructed packets attempting to overflow and corrupt the packet buffer!
     */
-
     bool ProcessFragment(const uint8_t* fragmentData, int fragmentSize, uint16_t packetSequence, int fragmentId, int numFragmentsInPacket)
     {
         assert(fragmentData);
@@ -454,8 +424,7 @@ bool SplitPacketIntoFragments(uint16_t sequence, const uint8_t* packetData, int 
             return false;
         }
 
-        //stream.Flush();
-        s_FlushBits(writer);
+        FlushBits(writer);
 
         uint32_t protocolId = host_to_network(ProtocolId);
         uint32_t crc32 = calculate_crc32((uint8_t*)&protocolId, 4, 0);

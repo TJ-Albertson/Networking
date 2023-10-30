@@ -7,24 +7,7 @@
 #include "address.h"
 #include "packet.h"
 
-
 typedef int SocketHandle;
-
-/*
-bool CreateSocket(Socket& socket);
-
-void DeleteSocket(Socket& socket);
-
-bool Open(unsigned short port);
-
-void Close();
-
-bool IsOpen();
-
-bool Send(const Address& destination, const void* data, int size);
-
-int Receive(Address& sender, void* data, int size);
-*/
 
 bool InitializeSockets()
 {
@@ -126,47 +109,29 @@ bool SendPacket(SocketHandle handle, Address destination, void* data, int size)
 
     memcpy(buffer + 5, data, size);
 
-    PacketB packet_1;
-    packet_1.numElements = 5;
-
-    packet_1.elements[0] = 1;
-    packet_1.elements[1] = 9;
-    packet_1.elements[2] = 3;
-    packet_1.elements[3] = 7;
-    packet_1.elements[4] = 2;
-
-    uint32_t p_buffer[256];
-
-    BitWriter writer;
-    writer.buffer = p_buffer;
-    writer.scratch = 0;
-    writer.scratch_bits = 0;
-    writer.word_index = 0;
-
-    packet_1.WriteSerialize(writer);
-
-    PacketA packet_2;
-    packet_2.x = 16;
-    packet_2.y = 83;
-    packet_2.z = 195;
-
-    packet_2.WriteSerialize(writer);
-
-    FlushBitsToMemory(writer);
-
-    uint8_t buff[32];
+    uint8_t buff[256];
     Stream writeStream;
 
-    InitWriteStream(writeStream, buff, 32);
+    InitWriteStream(writeStream, buff, 256);
 
-    PacketC packet_3;
+    PacketA packet_3;
     packet_3.x = 15;
     packet_3.y = 17;
     packet_3.z = 19;
 
     packet_3.Serialize(writeStream);
 
-    s_FlushBits(writeStream);
+    PacketB packetd;
+    packetd.numElements = 5;
+    packetd.elements[0] = 131;
+    packetd.elements[1] = 9;
+    packetd.elements[2] = 56;
+    packetd.elements[3] = 764;
+    packetd.elements[4] = 11;
+
+    packetd.Serialize(writeStream);
+
+    FlushBits(writeStream);
 
 
 

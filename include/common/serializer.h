@@ -155,29 +155,8 @@ inline int bits_required(uint32_t min, uint32_t max)
     return (min == max) ? 0 : log2(max - min) + 1;
 }
 
-void s_WriteBits(Stream& stream, uint32_t value, int bits)
+void WriteBits(Stream& stream, uint32_t value, int bits)
 {
-    printf("s_WriteBits %d\n", bits);
-
-    /*
-    assert(bits > 0);
-    assert(bits <= 32);
-    assert(stream.m_bitsProcessed + bits <= stream.m_numBits);
-
-    stream.m_scratch |= (uint64_t)value << stream.m_scratchBits;
-    stream.m_scratchBits += bits;
-
-    while (stream.m_scratchBits >= 32) {
-        stream.m_data[stream.m_wordIndex++] = (uint32_t)stream.m_scratch;
-        stream.m_scratch >>= 32;
-        stream.m_scratchBits -= 32;
-    }
-
-    stream.m_bitsProcessed += bits;
-
-    */
-    
-    
     assert(bits > 0);
     assert(bits <= 32);
     assert(stream.m_bitsProcessed + bits <= stream.m_numBits);
@@ -198,7 +177,7 @@ void s_WriteBits(Stream& stream, uint32_t value, int bits)
     stream.m_bitsProcessed += bits;
 }
 
-uint32_t s_ReadBits(Stream& stream, int bits)
+uint32_t ReadBits(Stream& stream, int bits)
 {
     assert(bits > 0);
     assert(bits <= 32);
@@ -224,7 +203,7 @@ uint32_t s_ReadBits(Stream& stream, int bits)
     return output;
 }
 
-void s_FlushBits(Stream& stream)
+void FlushBits(Stream& stream)
 {
     if (stream.m_scratchBits != 0) {
         stream.m_data[stream.m_wordIndex] = host_to_network(uint32_t(stream.m_scratch & 0xFFFFFFFF));
@@ -250,7 +229,7 @@ int GetBitsRemaining(Stream& stream)
     return stream.m_numBits - stream.m_bitsProcessed;
 }
 
-bool s_WouldOverflow(Stream stream, int bits)
+bool WouldOverflow(Stream stream, int bits)
 {
     assert(stream.type == READ);
 
@@ -264,17 +243,17 @@ bool SerializeBits(Stream& stream, uint32_t& value, int bits)
 
     if (stream.type == WRITE) {
 
-        s_WriteBits(stream, value, bits);
+        WriteBits(stream, value, bits);
         return true;
     }
 
     if (stream.type == READ) {
 
-        if (s_WouldOverflow(stream, bits)) {
+        if (WouldOverflow(stream, bits)) {
             return false;
         }
 
-        uint32_t read_value = s_ReadBits(stream, bits);
+        uint32_t read_value = ReadBits(stream, bits);
         value = read_value;
         stream.m_bitsProcessed += bits;
         return true;
@@ -306,18 +285,18 @@ bool SerializeInteger(Stream& stream, int32_t& value, int32_t min, int32_t max)
         assert(value <= max);
 
         uint32_t unsigned_value = value - min;
-        s_WriteBits(stream, unsigned_value, bits);
+        WriteBits(stream, unsigned_value, bits);
         return true;
     }
 
     if (stream.type == READ) {
 
-        if (s_WouldOverflow(stream, bits)) {
+        if (WouldOverflow(stream, bits)) {
             printf("Read Error: Would Overflow\n");
             return false;
         }
 
-        uint32_t unsigned_value = s_ReadBits(stream, bits);
+        uint32_t unsigned_value = ReadBits(stream, bits);
         value = (int32_t)unsigned_value + min;
         stream.m_bitsProcessed += bits;
         return true;
@@ -350,7 +329,7 @@ void WriteAlign(Stream& stream)
     const int remainderBits = stream.m_bitsProcessed % 8;
     if (remainderBits != 0) {
         uint32_t zero = 0;
-        s_WriteBits(stream, zero, 8 - remainderBits);
+        WriteBits(stream, zero, 8 - remainderBits);
         assert((stream.m_bitsProcessed % 8) == 0);
     }
 }
@@ -361,7 +340,7 @@ bool ReadAlign(Stream& stream)
 
     const int remainderBits = stream.m_bitsProcessed % 8;
     if (remainderBits != 0) {
-        uint32_t value = s_ReadBits(stream, 8 - remainderBits);
+        uint32_t value = ReadBits(stream, 8 - remainderBits);
         assert(stream.m_bitsProcessed % 8 == 0);
         if (value != 0)
             return false;
@@ -380,7 +359,7 @@ bool SerializeAlign(Stream& stream)
 
         const int alignBits = GetAlignBits(stream);
 
-        if (s_WouldOverflow(stream, alignBits)) {
+        if (WouldOverflow(stream, alignBits)) {
             return false;
         }
 
@@ -411,7 +390,7 @@ void ReadBytes(Stream& stream, uint8_t* data, int bytes)
     if (headBytes > bytes)
         headBytes = bytes;
     for (int i = 0; i < headBytes; ++i)
-        data[i] = (uint8_t)s_ReadBits(stream, 8);
+        data[i] = (uint8_t)ReadBits(stream, 8);
     if (headBytes == bytes)
         return;
 
@@ -432,7 +411,7 @@ void ReadBytes(Stream& stream, uint8_t* data, int bytes)
     int tailBytes = bytes - tailStart;
     assert(tailBytes >= 0 && tailBytes < 4);
     for (int i = 0; i < tailBytes; ++i)
-        data[tailStart + i] = (uint8_t)s_ReadBits(stream, 8);
+        data[tailStart + i] = (uint8_t)ReadBits(stream, 8);
 
     assert(GetAlignBits(stream) == 0);
 
@@ -449,11 +428,11 @@ void WriteBytes(Stream& stream, const uint8_t* data, int bytes)
     if (headBytes > bytes)
         headBytes = bytes;
     for (int i = 0; i < headBytes; ++i)
-        s_WriteBits(stream, data[i], 8);
+        WriteBits(stream, data[i], 8);
     if (headBytes == bytes)
         return;
 
-    s_FlushBits(stream);
+    FlushBits(stream);
 
     assert(GetAlignBits(stream) == 0);
 
@@ -472,7 +451,7 @@ void WriteBytes(Stream& stream, const uint8_t* data, int bytes)
     int tailBytes = bytes - tailStart;
     assert(tailBytes >= 0 && tailBytes < 4);
     for (int i = 0; i < tailBytes; ++i)
-        s_WriteBits(stream, data[tailStart + i], 8);
+        WriteBits(stream, data[tailStart + i], 8);
 
     assert(GetAlignBits(stream) == 0);
 
@@ -494,7 +473,7 @@ bool SerializeBytes(Stream& stream, uint8_t* data, int bytes)
     if (stream.type == READ) {
         if (!SerializeAlign(stream))
             return false;
-        if (s_WouldOverflow(stream, bytes * 8)) {
+        if (WouldOverflow(stream, bytes * 8)) {
             return false;
         }
         ReadBytes(stream, data, bytes);
@@ -515,241 +494,5 @@ bool serialize_bytes_internal(Stream& stream, uint8_t* data, int bytes)
             return false;                                              \
     } while (0)
 
-
-
-
-
-
-
-
-void WriteBits(BitWriter& writer, uint32_t value, int bits)
-{
-    assert(bits > 0);
-    assert(bits <= 32);
-    //assert(writer.m_bitsWritten + bits <= writer.m_numBits);
-
-    writer.scratch |= (uint64_t)value << writer.scratch_bits;
-    writer.scratch_bits += bits;
-
-    while (writer.scratch_bits >= 32) {
-        writer.buffer[writer.word_index++] = (uint32_t)writer.scratch;
-        writer.scratch >>= 32;
-        writer.scratch_bits -= 32;
-    }
-
-    writer.m_bitsWritten += bits;
-}
-
-// Function to flush any remaining bits to memory
-void FlushBitsToMemory(BitWriter& writer)
-{
-    if (writer.scratch_bits > 0) {
-        // Flush lower 32 bits to memory
-        writer.buffer[writer.word_index++] = (uint32_t)(writer.scratch & 0xFFFFFFFF);
-    }
-}
-
-uint32_t ReadBits(BitReader& reader, int num_bits_to_read)
-{
-    uint32_t result = 0;
-
-    while (num_bits_to_read > 0) {
-        if (reader.scratch_bits == 0 || num_bits_to_read > reader.scratch_bits) {
-            // Read the next word into scratch
-            uint32_t word = reader.buffer[reader.word_index];
-            reader.scratch |= (uint64_t)word << reader.scratch_bits;
-            reader.scratch_bits += 32;
-            reader.word_index++;
-        }
-
-        // Calculate the number of bits to read from scratch
-        int bits_to_read = (num_bits_to_read < reader.scratch_bits) ? num_bits_to_read : reader.scratch_bits;
-
-        // Extract the bits from scratch
-        uint32_t extracted_bits = reader.scratch & ((1ULL << bits_to_read) - 1);
-
-        // Update scratch and scratch_bits
-        reader.scratch >>= bits_to_read;
-        reader.scratch_bits -= bits_to_read;
-
-        // Update the result with the extracted bits
-        result |= (extracted_bits << (num_bits_to_read - bits_to_read));
-
-        // Update the number of bits left to read
-        num_bits_to_read -= bits_to_read;
-    }
-
-    reader.total_bits_read += num_bits_to_read;
-    return result;
-}
-
-bool WouldOverflow(BitReader reader, int bits)
-{
-    return reader.total_bits_read + bits > reader.total_bits;
-}
-
-
-
-
-
-
-bool ReadSerializeBits(BitReader& reader, uint32_t& value, int bits)
-{
-    assert(bits > 0);
-    assert(bits <= 32);
-
-    if (WouldOverflow(reader, bits))
-        return false;
-
-    value = ReadBits(reader, bits);
-
-    return true;
-}
-
-bool WriteSerializeBits(BitWriter& writer, uint32_t value, int bits)
-{
-    assert(bits > 0);
-    assert(bits <= 32);
-
-    WriteBits(writer, value, bits);
-    return true;
-}
-
-#define read_serialize_bits(reader, value, bits)       \
-    do {                                               \
-        assert(bits > 0);                              \
-        assert(bits <= 32);                            \
-        uint32_t uint32_value;                         \
-        if (!ReadSerializeBits(reader, uint32_value, bits)) \
-            return false;                              \
-        value = uint32_value;                          \
-    } while (0)
-
-#define write_serialize_bits(reader, value, bits)   \
-    if (!WriteSerializeBits(reader, value, bits)) { \
-        return false;                               \
-    }
-
-
-
-bool ReadSerializeInteger(BitReader& reader, int32_t& value, int32_t min, int32_t max)
-{
-    assert(min < max);
-
-    const int bits = BITS_REQUIRED(0, MaxElements);
-
-    if (WouldOverflow(reader, bits)) {
-        return false;
-    }
-
-    uint32_t unsigned_value = ReadBits(reader, bits);
-    value = (int32_t)unsigned_value + min;
-    return true;
-}
-bool WriteSerializeInteger(BitWriter& writer, int32_t value, int32_t min, int32_t max)
-{
-    assert(min < max);
-    assert(value >= min);
-    assert(value <= max);
-
-    const int bits = BITS_REQUIRED(0, MaxElements);
-    uint32_t unsigned_value = value - min;
-
-    WriteBits(writer, unsigned_value, bits);
-
-    return true;
-}
-
-#define read_serialize_int(reader, value, min, max)                 \
-    do {                                                            \
-        assert(min < max);                                          \
-        int32_t int32_value;                                        \
-        if (!ReadSerializeInteger(reader, int32_value, min, max)) { \
-            return false;                                           \
-        }                                                           \
-        value = int32_value;                                        \
-        if (value < min || value > max) {                           \
-            return false;                                           \
-        }                                                           \
-    } while (0)
-
-#define write_serialize_int(writer, value, min, max)                 \
-    do {                                                             \
-        assert(min < max);                                           \
-        int32_t int32_value;                                         \
-                                                                     \
-        assert(value >= min);                                        \
-        assert(value <= max);                                        \
-        int32_value = (int32_t)value;                                \
-                                                                     \
-        if (!WriteSerializeInteger(writer, int32_value, min, max)) { \
-            return false;                                            \
-        }                                                            \
-    } while (0)
-
-
-
-/*
-
-bool ReadAlign(BitReader& reader)
-{
-    const int remainderBits = reader.total_bits_read % 8;
-    if (remainderBits != 0) {
-        uint32_t value = ReadBits(reader, 8 - remainderBits);
-
-        assert(reader.total_bits_read % 8 == 0);
-        if (value != 0)
-            return false;
-    }
-    return true;
-}
-
-int GetAlignBits(BitReader& reader)
-{
-    return (8 - reader.total_bits_read % 8) % 8;
-}
-//
-bool ReadSerializeAlign()
-{
-    const int alignBits = m_reader.GetAlignBits();
-    if (m_reader.WouldOverflow(alignBits)) {
-        m_error = PROTOCOL2_ERROR_STREAM_OVERFLOW;
-        return false;
-    }
-    if (!m_reader.ReadAlign())
-        return false;
-    m_bitsRead += alignBits;
-    return true;
-}
-
-
-  #define read_serialize_align(write)  \
-    do {                              \
-        if (!stream.SerializeAlign()) \
-            return false;             \
-    } while (0)
-
-void WriteAlign(BitWriter& writer)
-{
-    const int remainderBits = writer. % 8;
-    if (remainderBits != 0) {
-        uint32_t zero = 0;
-        WriteBits(zero, 8 - remainderBits);
-        assert((m_bitsWritten % 8) == 0);
-    }
-}
-
-bool WriteSerializeAlign()
-{
-    m_writer.WriteAlign();
-    return true;
-}
-
-*/
-  #define write_serialize_align(write)       \
-    do {                              \
-        if (!stream.SerializeAlign()) \
-            return false;             \
-    } while (0)
 
 #endif

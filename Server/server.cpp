@@ -152,12 +152,14 @@ int main()
         Stream readStream;
         InitReadStream(readStream, buffer, 256);
         
-        PacketC packet;
+        PacketA packet;
 
         packet.Serialize(readStream);
 
+        PacketB packetdr;
+        packetdr.Serialize(readStream);
 
-
+       
         // Increase time for all clients
         for (auto& pair : clients) {
             pair.second -= deltaTime;
@@ -180,6 +182,14 @@ int main()
             console.AddLog("  packet.y: %d", packet.y);
             console.AddLog("  packet.z: %d", packet.z);
             
+
+             console.AddLog("packetdr.numElements: %d\n", packetdr.numElements);
+            console.AddLog("packetdr.elements[0]: %d\n", packetdr.elements[0]);
+            console.AddLog("packetdr.elements[1]: %d\n", packetdr.elements[1]);
+            console.AddLog("packetdr.elements[2]: %d\n", packetdr.elements[2]);
+            console.AddLog("packetdr.elements[3]: %d\n", packetdr.elements[3]);
+            console.AddLog("packetdr.elements[4]: %d\n", packetdr.elements[4]);
+
             /*
             printf("[Client %d] %s\n", sender.address, data);
             printf("    protocol_id: %d\n", protocol_id);
