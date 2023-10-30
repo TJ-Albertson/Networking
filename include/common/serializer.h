@@ -208,6 +208,12 @@ void s_FlushBits(Stream& stream)
     }
 }
 
+int GetAlignBits(Stream& stream)
+{
+    assert(stream.type == READ);
+    return (8 - stream.m_bitsProcessed % 8) % 8;
+}
+
 int GetBytesProcessed(Stream& stream)
 {
     return (stream.m_bitsProcessed + 7) / 8;
@@ -323,6 +329,20 @@ void WriteAlign(Stream& stream)
     }
 }
 
+bool ReadAlign(Stream& stream)
+{
+    assert(stream.type == READ);
+
+    const int remainderBits = stream.m_bitsProcessed % 8;
+    if (remainderBits != 0) {
+        uint32_t value = s_ReadBits(stream, 8 - remainderBits);
+        assert(stream.m_bitsProcessed % 8 == 0);
+        if (value != 0)
+            return false;
+    }
+    return true;
+}
+
 bool SerializeAlign(Stream& stream)
 {
     if (stream.type == WRITE) {
@@ -332,13 +352,13 @@ bool SerializeAlign(Stream& stream)
 
     if (stream.type == READ) {
 
-        const int alignBits = m_reader.GetAlignBits();
+        const int alignBits = GetAlignBits(stream);
 
         if (s_WouldOverflow(stream, alignBits)) {
             return false;
         }
 
-        if (!m_reader.ReadAlign())
+        if (!ReadAlign(stream))
             return false;
 
         stream.m_bitsProcessed += alignBits;
@@ -351,6 +371,126 @@ bool SerializeAlign(Stream& stream)
         if (!SerializeAlign(stream)) \
             return false;             \
     } while (0)
+
+
+
+
+void ReadBytes(Stream& stream, uint8_t* data, int bytes)
+{
+    assert(GetAlignBits(stream) == 0);
+    assert(stream.m_bitsProcessed + bytes * 8 <= stream.m_numBits);
+    assert((stream.m_bitsProcessed % 32) == 0 || (stream.m_bitsProcessed % 32) == 8 || (stream.m_bitsProcessed % 32) == 16 || (stream.m_bitsProcessed % 32) == 24);
+
+    int headBytes = (4 - (stream.m_bitsProcessed % 32) / 8) % 4;
+    if (headBytes > bytes)
+        headBytes = bytes;
+    for (int i = 0; i < headBytes; ++i)
+        data[i] = (uint8_t)s_ReadBits(stream, 8);
+    if (headBytes == bytes)
+        return;
+
+    assert(GetAlignBits(stream) == 0);
+
+    int numWords = (bytes - headBytes) / 4;
+    if (numWords > 0) {
+        assert((stream.m_bitsProcessed % 32) == 0);
+        memcpy(data + headBytes, &stream.m_data[stream.m_wordIndex], numWords * 4);
+        stream.m_bitsProcessed += numWords * 32;
+        stream.m_wordIndex += numWords;
+        stream.m_scratchBits = 0;
+    }
+
+    assert(GetAlignBits(stream) == 0);
+
+    int tailStart = headBytes + numWords * 4;
+    int tailBytes = bytes - tailStart;
+    assert(tailBytes >= 0 && tailBytes < 4);
+    for (int i = 0; i < tailBytes; ++i)
+        data[tailStart + i] = (uint8_t)s_ReadBits(stream, 8);
+
+    assert(GetAlignBits(stream) == 0);
+
+    assert(headBytes + numWords * 4 + tailBytes == bytes);
+}
+
+void WriteBytes(Stream& stream, const uint8_t* data, int bytes)
+{
+    assert(GetAlignBits(stream) == 0);
+    assert(stream.m_bitsProcessed + bytes * 8 <= stream.m_numBits);
+    assert((stream.m_bitsProcessed % 32) == 0 || (stream.m_bitsProcessed % 32) == 8 || (stream.m_bitsProcessed % 32) == 16 || (stream.m_bitsProcessed % 32) == 24);
+
+    int headBytes = (4 - (stream.m_bitsProcessed % 32) / 8) % 4;
+    if (headBytes > bytes)
+        headBytes = bytes;
+    for (int i = 0; i < headBytes; ++i)
+        s_WriteBits(stream, data[i], 8);
+    if (headBytes == bytes)
+        return;
+
+    s_FlushBits(stream);
+
+    assert(GetAlignBits(stream) == 0);
+
+    int numWords = (bytes - headBytes) / 4;
+    if (numWords > 0) {
+        assert((stream.m_bitsProcessed % 32) == 0);
+        memcpy(&stream.m_data[stream.m_wordIndex], data + headBytes, numWords * 4);
+        stream.m_bitsProcessed += numWords * 32;
+        stream.m_wordIndex += numWords;
+        stream.m_scratch = 0;
+    }
+
+    assert(GetAlignBits(stream) == 0);
+
+    int tailStart = headBytes + numWords * 4;
+    int tailBytes = bytes - tailStart;
+    assert(tailBytes >= 0 && tailBytes < 4);
+    for (int i = 0; i < tailBytes; ++i)
+        s_WriteBits(stream, data[tailStart + i], 8);
+
+    assert(GetAlignBits(stream) == 0);
+
+    assert(headBytes + numWords * 4 + tailBytes == bytes);
+}
+
+
+bool SerializeBytes(Stream& stream, uint8_t* data, int bytes)
+{
+    if (stream.type == WRITE) {
+        assert(data);
+        assert(bytes >= 0);
+        if (!SerializeAlign(stream))
+            return false;
+        WriteBytes(stream, data, bytes);
+        return true;
+    }
+
+    if (stream.type == READ) {
+        if (!SerializeAlign(stream))
+            return false;
+        if (s_WouldOverflow(stream, bytes * 8)) {
+            return false;
+        }
+        ReadBytes(stream, data, bytes);
+        stream.m_bitsProcessed += bytes * 8;
+        return true;
+    }
+}
+
+
+bool serialize_bytes_internal(Stream& stream, uint8_t* data, int bytes)
+{
+    return SerializeBytes(stream, data, bytes);
+}
+
+    #define serialize_bytes(stream, data, bytes)                           \
+    do {                                                               \
+        if (!protocol2::serialize_bytes_internal(stream, data, bytes)) \
+            return false;                                              \
+    } while (0)
+
+
+
 
 
 
