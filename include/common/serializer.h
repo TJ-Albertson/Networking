@@ -150,6 +150,11 @@ inline uint32_t network_to_host(uint32_t value)
 #endif // #if PROTOCOL2_BIG_ENDIAN
 }
 
+inline int bits_required(uint32_t min, uint32_t max)
+{
+    return (min == max) ? 0 : log2(max - min) + 1;
+}
+
 void s_WriteBits(Stream& stream, uint32_t value, int bits)
 {
     assert(bits > 0);
@@ -485,7 +490,7 @@ bool serialize_bytes_internal(Stream& stream, uint8_t* data, int bytes)
 
     #define serialize_bytes(stream, data, bytes)                           \
     do {                                                               \
-        if (!protocol2::serialize_bytes_internal(stream, data, bytes)) \
+        if (!serialize_bytes_internal(stream, data, bytes)) \
             return false;                                              \
     } while (0)
 
