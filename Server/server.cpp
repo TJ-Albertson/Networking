@@ -56,7 +56,7 @@ int main()
         return false;
     }
 
-    console.AddLog("[SERVER] Server started listening on port %d\n", port);
+    
 
     /*
     uint32_t local_sequence;
@@ -100,12 +100,24 @@ int main()
     time_t currentTime;
     char timeString[20];
 
+    time(&currentTime);
+    timeInfo = localtime(&currentTime);
+    strftime(timeString, 20, "%H:%M:%S", timeInfo);
+
+    console.AddLog("[%s INFO]: Server started listening on port %d\n", timeString, port);
+
+
+    uint16_t sequence = 0;
+    PacketData packets[PacketBufferSize];
+    uint8_t buffer[MaxPacketSize];
+
+
     while (!glfwWindowShouldClose(window)) {
 
-        
         time(&currentTime);
         timeInfo = localtime(&currentTime);
         strftime(timeString, 20, "%H:%M:%S", timeInfo);
+        
 
         UiLoop();
 
@@ -136,22 +148,15 @@ int main()
 
 
 
+        
+        Stream readStream;
+        InitReadStream(readStream, buffer, 256);
+        
+        PacketC packet;
+
+        packet.Serialize(readStream);
 
 
-        BitReader reader;
-        reader.scratch = 0;
-        reader.scratch_bits = 0;
-        reader.total_bits = 8 * sizeof(buffer);
-        reader.total_bits_read = 0;
-        reader.word_index = 0;
-        reader.buffer = (uint32_t*)buffer;
-
-        PacketB packet;
-
-        packet.ReadSerialize(reader);
-
-        PacketA packet_2;
-        packet_2.ReadSerialize(reader);
 
         // Increase time for all clients
         for (auto& pair : clients) {
@@ -170,15 +175,10 @@ int main()
             }
 
             console.AddLog("[%s INFO]: Client %d Message,", timeString, sender.address);
-
-            console.AddLog("  numElements: %d", packet.numElements);
-            for (int i = 0; i < packet.numElements; ++i) {
-                console.AddLog("   elements[%d]: %d", i, packet.elements[i]);
-            }   
             
-            console.AddLog("  packet.x: %d", packet_2.x);
-            console.AddLog("  packet.y: %d", packet_2.y);
-            console.AddLog("  packet.z: %d", packet_2.z);
+            console.AddLog("  packet.x: %d", packet.x);
+            console.AddLog("  packet.y: %d", packet.y);
+            console.AddLog("  packet.z: %d", packet.z);
             
             /*
             printf("[Client %d] %s\n", sender.address, data);

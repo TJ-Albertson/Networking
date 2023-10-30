@@ -154,8 +154,42 @@ bool SendPacket(SocketHandle handle, Address destination, void* data, int size)
 
     FlushBitsToMemory(writer);
 
+    uint8_t buff[32];
+    Stream writeStream;
+
+    InitWriteStream(writeStream, buff, 32);
+
+    PacketC packet_3;
+    packet_3.x = 15;
+    packet_3.y = 17;
+    packet_3.z = 19;
+
+    packet_3.Serialize(writeStream);
+
+    s_FlushBits(writeStream);
+
+
+
+    for (int i = 0; i < 12; i += 4) {
+        std::cout << "Part " << (i / 4 + 1) << " (bytes " << i << " to " << (i + 3) << "): ";
+        for (int j = i + 3; j >= i; j--) {
+            for (int k = 7; k >= 0; k--) {
+                std::cout << ((buff[j] >> k) & 1);
+            }
+            std::cout << ' ';
+        }
+        std::cout << std::endl;
+    }
+
+    int* intValues = (int*)buff;
+    int numInts = 3;
+
+    for (int i = 0; i < numInts; i++) {
+        printf("Value %d: %d\n", i + 1, intValues[i]);
+    }
+
     int sent_bytes = sendto(handle,
-        (const char*)p_buffer,
+        (const char*)buff,
         256,
         0,
         (sockaddr*)&destination.sock_address,

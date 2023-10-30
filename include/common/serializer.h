@@ -103,9 +103,9 @@ bool InitWriteStream(Stream& stream, void* data, int bytes)
     assert(data);
     assert((bytes % 4) == 0); // buffer size must be a multiple of four
 
-    stream.type == WRITE;
-    stream.m_data == (const uint32_t*)data;
-    stream.m_numBits == bytes * 8;
+    stream.type = WRITE;
+    stream.m_data = (uint32_t*)data;
+    stream.m_numBits = bytes * 8;
 
     stream.m_bitsProcessed = 0;
     stream.m_scratch = 0;
@@ -119,9 +119,9 @@ bool InitReadStream(Stream& stream, const void* data, int bytes)
 {
     assert(data);
     
-    stream.type == READ;
-    stream.m_data == (const uint32_t*)data;
-    stream.m_numBits == bytes * 8;
+    stream.type = READ;
+    stream.m_data = (uint32_t*)data;
+    stream.m_numBits = bytes * 8;
 
     stream.m_bitsProcessed = 0;
     stream.m_scratch = 0;
@@ -157,6 +157,27 @@ inline int bits_required(uint32_t min, uint32_t max)
 
 void s_WriteBits(Stream& stream, uint32_t value, int bits)
 {
+    printf("s_WriteBits %d\n", bits);
+
+    /*
+    assert(bits > 0);
+    assert(bits <= 32);
+    assert(stream.m_bitsProcessed + bits <= stream.m_numBits);
+
+    stream.m_scratch |= (uint64_t)value << stream.m_scratchBits;
+    stream.m_scratchBits += bits;
+
+    while (stream.m_scratchBits >= 32) {
+        stream.m_data[stream.m_wordIndex++] = (uint32_t)stream.m_scratch;
+        stream.m_scratch >>= 32;
+        stream.m_scratchBits -= 32;
+    }
+
+    stream.m_bitsProcessed += bits;
+
+    */
+    
+    
     assert(bits > 0);
     assert(bits <= 32);
     assert(stream.m_bitsProcessed + bits <= stream.m_numBits);
@@ -267,7 +288,7 @@ bool SerializeBits(Stream& stream, uint32_t& value, int bits)
         uint32_t uint32_value;                         \
         if (stream.type == WRITE)                      \
             uint32_value = (uint32_t)value;            \
-        if (SerializeBits(stream, uint32_value, bits)) \
+        if (!SerializeBits(stream, uint32_value, bits)) \
             return false;                              \
         if (stream.type == READ)                       \
             value = uint32_value;                      \

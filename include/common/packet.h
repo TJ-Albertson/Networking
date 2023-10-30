@@ -55,6 +55,18 @@ struct PacketB {
     }
 };
 
+struct PacketC {
+    int x, y, z;
+
+    bool Serialize(Stream& stream)
+    {
+        serialize_bits(stream, x, 32);
+        serialize_bits(stream, y, 32);
+        serialize_bits(stream, z, 32);
+        return true;
+    }
+};
+
 enum TestPacketTypes {
     PACKET_FRAGMENT = 0, // IMPORTANT: packet type 0 indicates a packet fragment
 
