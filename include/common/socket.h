@@ -105,7 +105,6 @@ bool SendPacket(SocketHandle handle, Address destination, void* data, int size)
         return false;
     }
 
-
     uint32_t network_protocolId = host_to_network(packetInfo.protocolId);
     uint32_t crc32 = calculate_crc32((const uint8_t*)&network_protocolId, 4, 0);
 
@@ -117,7 +116,7 @@ bool SendPacket(SocketHandle handle, Address destination, void* data, int size)
     serialize_bytes(writeStream, (uint8_t*)data, size);
 
     FlushBits(writeStream);
-
+    
 
     if (bytesWritten > MaxFragmentSize) {
         int numFragments;
