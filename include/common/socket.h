@@ -7,6 +7,7 @@
 #include "address.h"
 #include "packet.h"
 #include "utils.h"
+#include "fragment.h"
 
 typedef int SocketHandle;
 
@@ -116,36 +117,49 @@ bool SendPacket(SocketHandle handle, Address destination, void* data, int size)
     serialize_bytes(writeStream, (uint8_t*)data, size);
 
     FlushBits(writeStream);
-    
 
-    if (bytesWritten > MaxFragmentSize) {
+    int align_bits = GetAlignBits(writeStream);
+
+    int numBytes = (writeStream.m_bitsProcessed + align_bits) * 4;
+    
+    if (numBytes > MaxFragmentSize) {
+
         int numFragments;
         PacketData fragmentPackets[MaxFragmentsPerPacket];
-        SplitPacketIntoFragments(sequence, buffer, bytesWritten, numFragments, fragmentPackets);
+        int sequence = 0;
+        SplitPacketIntoFragments(sequence, buffer, numBytes, numFragments, fragmentPackets);
 
-        for (int j = 0; j < numFragments; ++j)
+        for (int j = 0; j < numFragments; ++j) {
             //  send fragments
 
-            SendPacket(fragmentPackets[j].data, fragmentPackets[j].size);
+            //SendPacket(fragmentPackets[j].data, fragmentPackets[j].size);
 
-        //  //packetBuffer.ProcessPacket(fragmentPackets[j].data, fragmentPackets[j].size);
+             int sent_bytes = sendto(handle,
+                (const char*)fragmentPackets[j].data,
+                fragmentPackets[j].size,
+                0,
+                (sockaddr*)&destination.sock_address,
+                sizeof(sockaddr_in));
+
+        }
+            
     } else {
-        printf("sending packet %d as a regular packet\n", sequence);
+         //printf("sending packet %d as a regular packet\n", sequence);
 
-        // packetBuffer.ProcessPacket(buffer, bytesWritten);
+         int sent_bytes = sendto(handle,
+            (const char*)buffer,
+            256,
+            0,
+            (sockaddr*)&destination.sock_address,
+            sizeof(sockaddr_in));
     }
 
-    int sent_bytes = sendto(handle,
-        (const char*)buffer,
-        256,
-        0,
-        (sockaddr*)&destination.sock_address,
-        sizeof(sockaddr_in));
-
+    /*
     if (sent_bytes != 256) {
         printf("failed to send packet\n");
         return false;
     }
+    */
 }
 
 int RecievePackets(SocketHandle handle, Address& sender, const void* data, int size)

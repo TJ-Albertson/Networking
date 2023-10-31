@@ -65,7 +65,27 @@ int main()
         }
 
         if (input[0] == 'b' && input[1] == '\n') {
-           // SendPacketB();
+           
+
+            uint8_t buffer[2000];
+
+            TestPacketB testpacket;
+
+            testpacket.numItems = 450;
+            testpacket.randomFill();
+
+            Stream writeStream;
+            InitWriteStream(writeStream, buffer, 2000);
+
+            uint32_t packetType = 2;
+            serialize_int(writeStream, packetType, 0, 2);
+
+            testpacket.Serialize(writeStream);
+
+            FlushBits(writeStream);
+
+            SendPacket(socket, address, (void*)buffer, 30);
+
         }
 
         // You can do something with the input here, like sending it

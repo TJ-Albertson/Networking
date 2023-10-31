@@ -67,6 +67,29 @@ struct PacketB {
     }
 };
 
+static const int MaxItems = 4096 * 4;
+
+struct TestPacketB {
+    int numItems;
+    int items[MaxItems];
+
+    void randomFill()
+    {
+        numItems = random_int(0, MaxItems);
+        for (int i = 0; i < numItems; ++i)
+            items[i] = random_int(-100, +100);
+    }
+
+    bool Serialize(Stream& stream)
+    {
+        serialize_int(stream, numItems, 0, MaxItems);
+        for (int i = 0; i < numItems; ++i) {
+            serialize_int(stream, items[i], -100, +100);
+        }
+        return true;
+    }
+};
+
 
 /*
 [protocol id] (32 bits)   // not actually sent, but used to calc crc32

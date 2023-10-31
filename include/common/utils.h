@@ -26,4 +26,23 @@ inline int sequence_difference(uint16_t _s1, uint16_t _s2)
     return s1 - s2;
 }
 
+inline int random_int(int a, int b)
+{
+    assert(a < b);
+    int result = a + rand() % (b - a + 1);
+    assert(result >= a);
+    assert(result <= b);
+    return result;
+}
+
+inline float random_float(float a, float b)
+{
+    assert(a < b);
+    float random = ((float)rand()) / (float)RAND_MAX;
+    float diff = b - a;
+    float r = random * diff;
+    return a + r;
+}
+
+
 #endif
