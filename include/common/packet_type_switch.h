@@ -8,16 +8,24 @@
 #include "fragment.h"
 
 
-void packet_switch(int packet_type, uint8_t* buffer) {
+void packet_switch(int packet_type, Stream& readStream) {
 
 	switch (packet_type) {
     case 0:
         printf("You selected 1.\n");
-        ProcessFragmentPacket(buffer);
+        ProcessFragmentPacket(readStream);
         break;
     case 1:
-        printf("You selected 1.\n");
-        ProcessPacketA(buffer);
+        printf("Packet Type A recieved\n");
+        
+        PacketA packet;
+
+        packet.Serialize(readStream);
+
+        printf("packet.x: %d\n", packet.x);
+        printf("packet.y: %d\n", packet.y);
+        printf("packet.z: %d\n", packet.z);
+
         break;
     case 2:
         printf("You selected 2.\n");

@@ -6,6 +6,7 @@
 
 #include "address.h"
 #include "packet.h"
+#include "utils.h"
 
 typedef int SocketHandle;
 
@@ -93,68 +94,50 @@ const int MAX_PACKET_SIZE = 256;
 const int HEADER_SIZE = 4;
 const int PROTOCOL_ID = 57;
 
+
+
 bool SendPacket(SocketHandle handle, Address destination, void* data, int size)
 {
     unsigned char buffer[256];
-
-    memcpy(buffer, &PROTOCOL_ID, 4);
-    
-    uint8_t packet_type = 1;
-    memcpy(buffer + 4, &packet_type, 1);
 
     if (size > MAX_PACKET_SIZE - HEADER_SIZE) {
         printf("Data too large\n");
         return false;
     }
 
-    memcpy(buffer + 5, data, size);
 
-    uint8_t buff[256];
+    uint32_t network_protocolId = host_to_network(packetInfo.protocolId);
+    uint32_t crc32 = calculate_crc32((const uint8_t*)&network_protocolId, 4, 0);
+
     Stream writeStream;
+    InitWriteStream(writeStream, buffer, 256);
 
-    InitWriteStream(writeStream, buff, 256);
+    serialize_bits(writeStream, crc32, 32);
 
-    PacketA packet_3;
-    packet_3.x = 15;
-    packet_3.y = 17;
-    packet_3.z = 19;
-
-    packet_3.Serialize(writeStream);
-
-    PacketB packetd;
-    packetd.numElements = 5;
-    packetd.elements[0] = 131;
-    packetd.elements[1] = 9;
-    packetd.elements[2] = 56;
-    packetd.elements[3] = 764;
-    packetd.elements[4] = 11;
-
-    packetd.Serialize(writeStream);
+    serialize_bytes(writeStream, (uint8_t*)data, size);
 
     FlushBits(writeStream);
 
 
+    if (bytesWritten > MaxFragmentSize) {
+        int numFragments;
+        PacketData fragmentPackets[MaxFragmentsPerPacket];
+        SplitPacketIntoFragments(sequence, buffer, bytesWritten, numFragments, fragmentPackets);
 
-    for (int i = 0; i < 12; i += 4) {
-        std::cout << "Part " << (i / 4 + 1) << " (bytes " << i << " to " << (i + 3) << "): ";
-        for (int j = i + 3; j >= i; j--) {
-            for (int k = 7; k >= 0; k--) {
-                std::cout << ((buff[j] >> k) & 1);
-            }
-            std::cout << ' ';
-        }
-        std::cout << std::endl;
-    }
+        for (int j = 0; j < numFragments; ++j)
+            //  send fragments
 
-    int* intValues = (int*)buff;
-    int numInts = 3;
+            SendPacket(fragmentPackets[j].data, fragmentPackets[j].size);
 
-    for (int i = 0; i < numInts; i++) {
-        printf("Value %d: %d\n", i + 1, intValues[i]);
+        //  //packetBuffer.ProcessPacket(fragmentPackets[j].data, fragmentPackets[j].size);
+    } else {
+        printf("sending packet %d as a regular packet\n", sequence);
+
+        // packetBuffer.ProcessPacket(buffer, bytesWritten);
     }
 
     int sent_bytes = sendto(handle,
-        (const char*)buff,
+        (const char*)buffer,
         256,
         0,
         (sockaddr*)&destination.sock_address,

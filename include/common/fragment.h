@@ -10,23 +10,8 @@
 #include "packet.h"
 
 
-const uint32_t ProtocolId = 0x55667788;
 
-const int PacketBufferSize = 256; // size of packet buffer, eg. number of historical packets for which we can buffer fragments
-const int MaxFragmentSize = 1024; // maximum size of a packet fragment
-const int MaxFragmentsPerPacket = 256; // maximum number of fragments per-packet
-const int MaxPacketSize = MaxFragmentSize * MaxFragmentsPerPacket;
-const int PacketFragmentHeaderBytes = 16;
 
-enum TestPacketTypes {
-    PACKET_FRAGMENT = 0, // IMPORTANT: packet type 0 indicates a packet fragment
-
-    TEST_PACKET_A,
-    TEST_PACKET_B,
-    TEST_PACKET_C,
-
-    TEST_PACKET_NUM_TYPES
-};
 
 struct PacketData {
     int size;
@@ -305,21 +290,17 @@ bool SplitPacketIntoFragments(uint16_t sequence, const uint8_t* packetData, int 
 
 
 
-bool ProcessFragmentPacket(uint8_t* data) {
-
-    Stream reader;
-
-    if (!InitReadStream(reader, data, size)) {
-        printf("Failed to init read stream\n");
-    }
+bool ProcessFragmentPacket(Stream& stream) {
 
     FragmentPacket fragmentPacket;
 
-    if (!fragmentPacket.Serialize(reader)) {
+    if (!fragmentPacket.Serialize(stream)) {
         printf("error: fragment packet failed to serialize\n");
         return false;
     }
 
+
+    uint8_t data[200];
     if (!ProcessFragment(packetBuffer, data + PacketFragmentHeaderBytes, fragmentPacket.fragmentSize, fragmentPacket.sequence, fragmentPacket.fragmentId, fragmentPacket.numFragments)) {
         printf("error: failed to process fragment\n");
         return false;
@@ -335,7 +316,7 @@ bool ProcessFragmentPacket(uint8_t* data) {
         uint8_t* data = packets[j].data;
         int size = packets[j].size;
 
-        packet_switch()
+        //packet_switch()
     }
 
 }

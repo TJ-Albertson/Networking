@@ -215,7 +215,6 @@ void FlushBits(Stream& stream)
 
 int GetAlignBits(Stream& stream)
 {
-    assert(stream.type == READ);
     return (8 - stream.m_bitsProcessed % 8) % 8;
 }
 

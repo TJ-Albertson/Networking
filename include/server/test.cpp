@@ -4,8 +4,8 @@
 #include <map>
 #include <time.h>
 
-#include "socket.h"
 #include "packet_type_switch.h"
+#include "socket.h"
 
 const uint32_t protocol_id = 57;
 
@@ -74,20 +74,16 @@ int main()
 
             uint32_t network_protocolId = host_to_network(packetInfo.protocolId);
             uint32_t crc32 = calculate_crc32((const uint8_t*)&network_protocolId, 4, 0);
-            uint32_t zero = 0;
-
-            crc32 = calculate_crc32((const uint8_t*)&zero, 4, crc32);
-            crc32 = calculate_crc32(buffer + packetInfo.prefixBytes + 4, bufferSize - 4 - packetInfo.prefixBytes, crc32);
 
             if (crc32 != read_crc32) {
                 printf("corrupt packet. expected crc32 %x, got %x\n", crc32, read_crc32);
-                return;
+                continue;
             }
 
             uint32_t packet_type = 0;
-            SerializeBits(readStream, packet_type, 2);
+            serialize_bits(readStream, packet_type, 2);
 
             packet_switch(packet_type, readStream);
+        }
     }
-
 }
