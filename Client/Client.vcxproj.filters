@@ -53,5 +53,14 @@
     <ClInclude Include="..\include\common\chunk.h">
       <Filter>Common</Filter>
     </ClInclude>
+    <ClInclude Include="..\include\common\Header.h">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\common\utils.h">
+      <Filter>Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\common\packet_type_switch.h">
+      <Filter>Common</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
