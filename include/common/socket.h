@@ -99,18 +99,22 @@ const int PROTOCOL_ID = 57;
 
 bool SendPacket(SocketHandle handle, Address destination, void* data, int size)
 {
-    unsigned char buffer[256];
+    unsigned char buffer[2000];
 
-    if (size > MAX_PACKET_SIZE - HEADER_SIZE) {
-        printf("Data too large\n");
-        return false;
+    printf("size1: %d\n", size);
+
+    int remainder = size % 4;
+    if (remainder != 0) {
+        size = size + (4 - remainder);
     }
+
+    printf("size2: %d\n", size);
 
     uint32_t network_protocolId = host_to_network(packetInfo.protocolId);
     uint32_t crc32 = calculate_crc32((const uint8_t*)&network_protocolId, 4, 0);
 
     Stream writeStream;
-    InitWriteStream(writeStream, buffer, 256);
+    InitWriteStream(writeStream, buffer, size + 32);
 
     serialize_bits(writeStream, crc32, 32);
 
@@ -120,7 +124,9 @@ bool SendPacket(SocketHandle handle, Address destination, void* data, int size)
 
     int align_bits = GetAlignBits(writeStream);
 
-    int numBytes = (writeStream.m_bitsProcessed + align_bits) * 4;
+    int numBytes = (writeStream.m_bitsProcessed + align_bits) / 8;
+
+    printf("numBytes: %d\n", numBytes);
     
     if (numBytes > MaxFragmentSize) {
 
@@ -144,11 +150,11 @@ bool SendPacket(SocketHandle handle, Address destination, void* data, int size)
         }
             
     } else {
-         //printf("sending packet %d as a regular packet\n", sequence);
+         printf("sending packet as a regular packet\n");
 
          int sent_bytes = sendto(handle,
             (const char*)buffer,
-            256,
+            numBytes,
             0,
             (sockaddr*)&destination.sock_address,
             sizeof(sockaddr_in));

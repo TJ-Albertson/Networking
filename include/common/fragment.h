@@ -250,9 +250,14 @@ bool SplitPacketIntoFragments(uint16_t sequence, const uint8_t* packetData, int 
             printf("Failed to init read stream\n");
         }
 
+        uint32_t protocolId = host_to_network(packetInfo.protocolId);
+        uint32_t crc32 = calculate_crc32((uint8_t*)&protocolId, 4, 0);
+
         FragmentPacket fragmentPacket;
+        fragmentPacket.crc32 = crc32;
         fragmentPacket.fragmentSize = fragmentSize;
-        fragmentPacket.crc32 = 0;
+        //fragmentPacket.crc32 = crc32;
+
         fragmentPacket.sequence = sequence;
         fragmentPacket.fragmentId = (uint8_t)i;
         fragmentPacket.numFragments = (uint8_t)numFragments;
@@ -270,11 +275,15 @@ bool SplitPacketIntoFragments(uint16_t sequence, const uint8_t* packetData, int 
 
         FlushBits(writer);
 
+        /*
         uint32_t protocolId = host_to_network(ProtocolId);
         uint32_t crc32 = calculate_crc32((uint8_t*)&protocolId, 4, 0);
         crc32 = calculate_crc32(fragmentPackets[i].data, GetBytesProcessed(writer), crc32);
+        
 
         *((uint32_t*)fragmentPackets[i].data) = host_to_network(crc32);
+        
+        */
 
         printf("fragment packet %d: %d bytes\n", i, GetBytesProcessed(writer));
 

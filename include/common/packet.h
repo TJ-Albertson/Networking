@@ -75,7 +75,7 @@ struct TestPacketB {
 
     void randomFill()
     {
-        numItems = random_int(0, MaxItems);
+        //numItems = random_int(0, MaxItems);
         for (int i = 0; i < numItems; ++i)
             items[i] = random_int(-100, +100);
     }

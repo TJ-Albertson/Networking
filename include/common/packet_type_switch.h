@@ -12,7 +12,7 @@ void packet_switch(int packet_type, Stream& readStream) {
 
 	switch (packet_type) {
     case 0:
-        printf("You selected 1.\n");
+        printf("Fragmented packet recieved.\n");
         ProcessFragmentPacket(readStream);
         break;
     case 1:

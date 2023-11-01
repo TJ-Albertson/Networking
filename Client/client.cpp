@@ -43,7 +43,7 @@ int main()
 
 
         if (input[0] == 'a' && input[1] == '\n') {
-            uint8_t buffer[30];
+            uint8_t buffer[32];
 
             PacketA packet;
             packet.x = 238;
@@ -51,7 +51,7 @@ int main()
             packet.z = 5;
 
             Stream writeStream;
-            InitWriteStream(writeStream, buffer, 256);
+            InitWriteStream(writeStream, buffer, 32);
 
             uint32_t packetType = 1;
             serialize_int(writeStream, packetType, 0, 2);
@@ -60,7 +60,15 @@ int main()
 
             FlushBits(writeStream);
 
-            SendPacket(socket, address, (void*)buffer, 30);
+            int align_bits = GetAlignBits(writeStream);
+
+            int numBytes = (writeStream.m_bitsProcessed + align_bits) / 8;
+
+            printf("align_bits: %d\n", align_bits);
+
+            printf("writeStream.m_bitsProcessed + align_bits: %d\n", writeStream.m_bitsProcessed + align_bits);
+
+            SendPacket(socket, address, (void*)buffer, numBytes);
             continue;
         }
 
@@ -71,7 +79,7 @@ int main()
 
             TestPacketB testpacket;
 
-            testpacket.numItems = 450;
+            testpacket.numItems = 1024;
             testpacket.randomFill();
 
             Stream writeStream;
@@ -82,10 +90,24 @@ int main()
 
             testpacket.Serialize(writeStream);
 
+            WriteAlign(writeStream);
+
             FlushBits(writeStream);
 
-            SendPacket(socket, address, (void*)buffer, 30);
+            int align_bits = GetAlignBits(writeStream);
 
+            int numBytes = (writeStream.m_bitsProcessed + align_bits) / 8;
+
+            
+
+            printf("align_bits: %d\n", align_bits);
+
+            printf("writeStream.m_bitsProcessed: %d\n", writeStream.m_bitsProcessed);
+
+            printf("numBytes: %d\n", numBytes);
+
+            SendPacket(socket, address, (void*)buffer, numBytes);
+            continue;
         }
 
         // You can do something with the input here, like sending it
