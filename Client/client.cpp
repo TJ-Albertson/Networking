@@ -79,7 +79,7 @@ int main()
 
             TestPacketB testpacket;
 
-            testpacket.numItems = 1024;
+            testpacket.numItems = 1600;
             testpacket.randomFill();
 
             Stream writeStream;

@@ -338,7 +338,8 @@ bool ReadAlign(Stream& stream)
     assert(stream.type == READ);
 
     const int remainderBits = stream.m_bitsProcessed % 8;
-    if (remainderBits != 0) {
+    if (remainderBits != 0) 
+    {
         uint32_t value = ReadBits(stream, 8 - remainderBits);
         assert(stream.m_bitsProcessed % 8 == 0);
         if (value != 0)
@@ -358,6 +359,8 @@ bool SerializeAlign(Stream& stream)
 
         const int alignBits = GetAlignBits(stream);
 
+        
+
         if (WouldOverflow(stream, alignBits)) {
             return false;
         }
@@ -365,7 +368,7 @@ bool SerializeAlign(Stream& stream)
         if (!ReadAlign(stream))
             return false;
 
-        stream.m_bitsProcessed += alignBits;
+        //stream.m_bitsProcessed += alignBits;
         return true;
     }
 }

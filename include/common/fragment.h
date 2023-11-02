@@ -115,7 +115,7 @@ bool ProcessFragment(PacketBuffer& p_buffer, const uint8_t* fragmentData, int fr
 
     // if this is not the last fragment in the packet and fragment size is not equal to MaxFragmentSize, discard the fragment
     if (fragmentId != numFragmentsInPacket - 1 && fragmentSize != MaxFragmentSize) {
-        printf("not the last fragment in the packet and fragment size is not equal to MaxFragmentSize\n");
+        printf("not the last fragment in the packet and fragment size[%d] is not equal to MaxFragmentSize[%d]\n", fragmentSize, MaxFragmentSize);
         return false;
     }
 
@@ -269,7 +269,7 @@ bool SplitPacketIntoFragments(uint16_t sequence, const uint8_t* packetData, int 
             printf("Failed to init read stream\n");
         }
 
-      // uint32_t protocolId = host_to_network(packetInfo.protocolId);
+        // uint32_t protocolId = host_to_network(packetInfo.protocolId);
         // uint32_t crc32 = calculate_crc32((uint8_t*)&protocolId, 4, 0);
 
         FragmentPacket fragmentPacket;
@@ -296,11 +296,9 @@ bool SplitPacketIntoFragments(uint16_t sequence, const uint8_t* packetData, int 
         FlushBits(writer);
 
         
-        uint32_t protocolId = host_to_network(ProtocolId);
+        uint32_t protocolId = host_to_network(packetInfo.protocolId);
         uint32_t crc32 = calculate_crc32((uint8_t*)&protocolId, 4, 0);
         crc32 = calculate_crc32(fragmentPackets[i].data, GetBytesProcessed(writer), crc32);
-        
-
         *((uint32_t*)fragmentPackets[i].data) = host_to_network(crc32);
         
         
@@ -322,12 +320,21 @@ bool SplitPacketIntoFragments(uint16_t sequence, const uint8_t* packetData, int 
 bool ProcessFragmentPacket(Stream& stream) {
 
     FragmentPacket fragmentPacket;
+    
+    Stream reader;
 
-    if (!fragmentPacket.Serialize(stream)) {
+    printf("stream.m_numBits / 8: %d\n", stream.m_numBits / 8);
+
+    InitReadStream(reader, stream.m_data, stream.m_numBits / 8);
+
+
+
+    if (!fragmentPacket.Serialize(reader)) {
         printf("error: fragment packet failed to serialize\n");
         return false;
     }
 
+    printf("fragmentPacket.fragmentSize %d\n", fragmentPacket.fragmentSize);
 
     //uint8_t data[200];
     if (!ProcessFragment(packetBuffer, (uint8_t*)stream.m_data + PacketFragmentHeaderBytes, fragmentPacket.fragmentSize, fragmentPacket.sequence, fragmentPacket.fragmentId, fragmentPacket.numFragments)) {

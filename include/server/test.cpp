@@ -7,8 +7,6 @@
 #include "packet_type_switch.h"
 #include "socket.h"
 
-const uint32_t protocol_id = 57;
-
 typedef struct Client {
     // unsigned int ip_addr;
     float time;
@@ -52,8 +50,6 @@ int main()
 
         Address sender;
 
-        uint8_t buffer[MaxPacketSize];
-
         int bytes_read = RecievePackets(socket, sender,
             buffer,
             sizeof(buffer));
@@ -64,18 +60,23 @@ int main()
         // Unique message recieve
         if (sender.address <= 0 || sender.address != -858993460) {
 
-            int bufferSize = 256;
+            printf("bytes_read: %d\n", bytes_read);
 
             Stream readStream;
-            InitReadStream(readStream, buffer, bufferSize);
+            InitReadStream(readStream, buffer, bytes_read);
 
             uint32_t read_crc32 = 0;
             SerializeBits(readStream, read_crc32, 32);
 
-            uint32_t network_protocolId = host_to_network(packetInfo.protocolId);
+
+            uint32_t network_protocolId = host_to_network( packetInfo.protocolId );
             uint32_t crc32 = calculate_crc32((const uint8_t*)&network_protocolId, 4, 0);
-            crc32 = calculate_crc32((uint8_t*)buffer, bytes_read, crc32);
-            crc32 = host_to_network(crc32);
+            uint32_t zero = 0;
+            
+            crc32 = calculate_crc32((const uint8_t*) &zero, 4, crc32);
+            //important to offset buffer as to not include og crc32
+            crc32 = calculate_crc32(buffer + 4, bytes_read - 4, crc32);
+
 
             if (crc32 != read_crc32) {
                 printf("corrupt packet. expected crc32 %x, got %x\n", crc32, read_crc32);

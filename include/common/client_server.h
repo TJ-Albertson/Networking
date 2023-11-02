@@ -296,22 +296,22 @@ void ServerReceivePackets(double time)
     }
 }
 
-void ServerCheckForTimeOut(double time)
+void ServerCheckForTimeOut(Server& server, double time)
 {
     for (int i = 0; i < MaxClients; ++i) {
-        if (!m_clientConnected[i])
+        if (!server.m_clientConnected[i])
             continue;
 
-        if (m_clientData[i].lastPacketReceiveTime + KeepAliveTimeOut < time) {
+        if (server.m_clientData[i].lastPacketReceiveTime + KeepAliveTimeOut < time) {
             char buffer[256];
-            const char* addressString = m_clientAddress[i].ToString(buffer, sizeof(buffer));
+            const char* addressString = server.m_clientAddress[i].ToString(buffer, sizeof(buffer));
             printf("client %d timed out (client address = %s, client salt = %" PRIx64 ", challenge salt = %" PRIx64 ")\n", i, addressString, m_clientSalt[i], m_challengeSalt[i]);
-            DisconnectClient(i, time);
+            server.DisconnectClient(i, time);
         }
     }
 }
 
-void ServerResetClientState(int clientIndex)
+void ServerResetClientState(Server& server, int clientIndex)
 {
     assert(clientIndex >= 0);
     assert(clientIndex < MaxClients);

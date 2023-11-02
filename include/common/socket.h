@@ -99,54 +99,20 @@ const int PROTOCOL_ID = 57;
 
 bool SendPacket(SocketHandle handle, Address destination, void* data, int size)
 {
-    unsigned char buffer[2000];
-
-    printf("size1: %d\n", size);
-
-    int remainder = size % 4;
-    if (remainder != 0) {
-        size = size + (4 - remainder);
-    }
-
-    printf("size2: %d\n", size);
-
-    int size_plus_crc = size + 32;
-
-    Stream writeStream;
-    InitWriteStream(writeStream, buffer, size_plus_crc);
-
-    uint32_t crc32 = 0;
-    serialize_bits(writeStream, crc32, 32);
-    serialize_bytes(writeStream, (uint8_t*)data, size);
-
-    FlushBits(writeStream);
-
-    // do crc32 after the fact to include data
-    uint32_t network_protocolId = host_to_network(packetInfo.protocolId);
-    crc32 = calculate_crc32((const uint8_t*)&network_protocolId, 4, 0);
-    crc32 = calculate_crc32((uint8_t*)buffer, size_plus_crc, crc32);
-    *((uint32_t*)(buffer)) = host_to_network(crc32);
-
-    int align_bits = GetAlignBits(writeStream);
-
-    int numBytes = (writeStream.m_bitsProcessed + align_bits) / 8;
-
-    printf("numBytes: %d\n", numBytes);
-
-    assert(size_plus_crc = numBytes);
+    uint8_t buffer[2000];
     
-    if (numBytes > MaxFragmentSize) {
+    if (size > MaxFragmentSize) {
 
         int numFragments;
         PacketData fragmentPackets[MaxFragmentsPerPacket];
         int sequence = 0;
-        SplitPacketIntoFragments(sequence, buffer, numBytes, numFragments, fragmentPackets);
+        SplitPacketIntoFragments(sequence, (uint8_t*)data, size, numFragments, fragmentPackets);
 
         for (int j = 0; j < numFragments; ++j) {
 
             //SendPacket(fragmentPackets[j].data, fragmentPackets[j].size);
 
-             int sent_bytes = sendto(handle,
+            int sent_bytes = sendto(handle,
                 (const char*)fragmentPackets[j].data,
                 fragmentPackets[j].size,
                 0,
@@ -158,12 +124,43 @@ bool SendPacket(SocketHandle handle, Address destination, void* data, int size)
     } else {
          printf("sending packet as a regular packet\n");
 
+          int remainder = size % 4;
+         if (remainder != 0) {
+            size = size + (4 - remainder);
+         }
+
+         int size_plus_crc = size + 4;
+
+         Stream writeStream;
+         InitWriteStream(writeStream, buffer, size_plus_crc);
+
+         uint32_t crc32 = 0;
+         serialize_bits(writeStream, crc32, 32);
+         serialize_bytes(writeStream, (uint8_t*)data, size);
+
+         FlushBits(writeStream);
+
+         int align_bits = GetAlignBits(writeStream);
+
+         int numBytes = (writeStream.m_bitsProcessed + align_bits) / 8;
+
+         printf("numBytes: %d\n", numBytes);
+
+         // do crc32 after the fact to include data
+         uint32_t network_protocolId = host_to_network(packetInfo.protocolId);
+         crc32 = calculate_crc32((uint8_t*)&network_protocolId, 4, 0);
+         crc32 = calculate_crc32(buffer, numBytes, crc32);
+         *((uint32_t*)(buffer)) = host_to_network(crc32);
+
+
          int sent_bytes = sendto(handle,
             (const char*)buffer,
             numBytes,
             0,
             (sockaddr*)&destination.sock_address,
             sizeof(sockaddr_in));
+
+
     }
 
     /*
@@ -197,7 +194,7 @@ int RecievePackets(SocketHandle handle, Address& sender, const void* data, int s
 
     sender.address = from_address;
 
-    return 1;
+    return bytes;
     // process received packet
 }
 
