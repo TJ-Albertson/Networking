@@ -157,7 +157,9 @@ struct FragmentPacket {
 
 [protocol id] (32 bits)   // not actually sent, but used to calc crc32
 [crc32] (32 bits)
+
 [packet type = 0] (2 bits)
+
 [sequence] (16 bits)
 [fragment id] (8 bits)
 [num fragments] (8 bits)

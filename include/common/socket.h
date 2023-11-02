@@ -110,23 +110,30 @@ bool SendPacket(SocketHandle handle, Address destination, void* data, int size)
 
     printf("size2: %d\n", size);
 
-    uint32_t network_protocolId = host_to_network(packetInfo.protocolId);
-    uint32_t crc32 = calculate_crc32((const uint8_t*)&network_protocolId, 4, 0);
+    int size_plus_crc = size + 32;
 
     Stream writeStream;
-    InitWriteStream(writeStream, buffer, size + 32);
+    InitWriteStream(writeStream, buffer, size_plus_crc);
 
+    uint32_t crc32 = 0;
     serialize_bits(writeStream, crc32, 32);
-
     serialize_bytes(writeStream, (uint8_t*)data, size);
 
     FlushBits(writeStream);
+
+    // do crc32 after the fact to include data
+    uint32_t network_protocolId = host_to_network(packetInfo.protocolId);
+    crc32 = calculate_crc32((const uint8_t*)&network_protocolId, 4, 0);
+    crc32 = calculate_crc32((uint8_t*)buffer, size_plus_crc, crc32);
+    *((uint32_t*)(buffer)) = host_to_network(crc32);
 
     int align_bits = GetAlignBits(writeStream);
 
     int numBytes = (writeStream.m_bitsProcessed + align_bits) / 8;
 
     printf("numBytes: %d\n", numBytes);
+
+    assert(size_plus_crc = numBytes);
     
     if (numBytes > MaxFragmentSize) {
 
@@ -136,7 +143,6 @@ bool SendPacket(SocketHandle handle, Address destination, void* data, int size)
         SplitPacketIntoFragments(sequence, buffer, numBytes, numFragments, fragmentPackets);
 
         for (int j = 0; j < numFragments; ++j) {
-            //  send fragments
 
             //SendPacket(fragmentPackets[j].data, fragmentPackets[j].size);
 

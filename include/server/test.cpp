@@ -74,6 +74,8 @@ int main()
 
             uint32_t network_protocolId = host_to_network(packetInfo.protocolId);
             uint32_t crc32 = calculate_crc32((const uint8_t*)&network_protocolId, 4, 0);
+            crc32 = calculate_crc32((uint8_t*)buffer, bytes_read, crc32);
+            crc32 = host_to_network(crc32);
 
             if (crc32 != read_crc32) {
                 printf("corrupt packet. expected crc32 %x, got %x\n", crc32, read_crc32);

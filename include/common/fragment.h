@@ -89,34 +89,48 @@ bool ProcessFragment(PacketBuffer& p_buffer, const uint8_t* fragmentData, int fr
     assert(fragmentData);
 
     // fragment size is <= zero? discard the fragment.
-    if (fragmentSize <= 0)
+    if (fragmentSize <= 0) {
+        printf("fragment size is <= zero\n");
         return false;
-
+    }
+        
     // fragment size exceeds max fragment size? discard the fragment.
-    if (fragmentSize > MaxFragmentSize)
+    if (fragmentSize > MaxFragmentSize) {
+        printf("fragment size exceeds max fragment size\n");
         return false;
+    }
+        
 
     // num fragments outside of range? discard the fragment
-    if (numFragmentsInPacket <= 0 || numFragmentsInPacket > MaxFragmentsPerPacket)
+    if (numFragmentsInPacket <= 0 || numFragmentsInPacket > MaxFragmentsPerPacket) {
+        printf("num fragments outside of range\n");
         return false;
+    }
 
     // fragment index out of range? discard the fragment
-    if (fragmentId < 0 || fragmentId >= numFragmentsInPacket)
+    if (fragmentId < 0 || fragmentId >= numFragmentsInPacket) {
+        printf("fragment index out of range\n");
         return false;
+    }
 
     // if this is not the last fragment in the packet and fragment size is not equal to MaxFragmentSize, discard the fragment
-    if (fragmentId != numFragmentsInPacket - 1 && fragmentSize != MaxFragmentSize)
+    if (fragmentId != numFragmentsInPacket - 1 && fragmentSize != MaxFragmentSize) {
+        printf("not the last fragment in the packet and fragment size is not equal to MaxFragmentSize\n");
         return false;
+    }
 
     // packet sequence number wildly out of range from the current sequence? discard the fragment
-    if (sequence_difference(packetSequence, p_buffer.currentSequence) > 1024)
+    if (sequence_difference(packetSequence, p_buffer.currentSequence) > 1024) {
+        printf("packet sequence number wildly out of range from the current sequence\n");
         return false;
+    }
 
     // if the entry exists, but has a different sequence number, discard the fragment
     const int index = packetSequence % PacketBufferSize;
-
-    if (p_buffer.valid[index] && p_buffer.entries[index].sequence != packetSequence)
+    if (p_buffer.valid[index] && p_buffer.entries[index].sequence != packetSequence) {
+        printf("entry exists, but has a different sequence number\n");
         return false;
+    }
 
     // if the entry does not exist, add an entry for this sequence # and set total fragments
     if (!p_buffer.valid[index]) {
@@ -132,16 +146,21 @@ bool ProcessFragment(PacketBuffer& p_buffer, const uint8_t* fragmentData, int fr
     assert(p_buffer.entries[index].sequence == packetSequence);
 
     // if the total number fragments is different for this packet vs. the entry, discard the fragment
-    if (numFragmentsInPacket != (int)p_buffer.entries[index].numFragments)
+    if (numFragmentsInPacket != (int)p_buffer.entries[index].numFragments) {
+        printf("total number fragments is different for this packet vs. the entry\n");
         return false;
+    }
 
     // if this fragment has already been received, ignore it because it must have come from a duplicate packet
     assert(fragmentId < numFragmentsInPacket);
     assert(fragmentId < MaxFragmentsPerPacket);
     assert(numFragmentsInPacket <= MaxFragmentsPerPacket);
 
-    if (p_buffer.entries[index].fragmentSize[fragmentId])
+    if (p_buffer.entries[index].fragmentSize[fragmentId]) {
+        printf("fragment has already been received\n");
         return false;
+    }
+        
 
     // add the fragment to the packet buffer
     printf("added fragment %d of packet %d to buffer\n", fragmentId, packetSequence);
@@ -250,12 +269,13 @@ bool SplitPacketIntoFragments(uint16_t sequence, const uint8_t* packetData, int 
             printf("Failed to init read stream\n");
         }
 
-        uint32_t protocolId = host_to_network(packetInfo.protocolId);
-        uint32_t crc32 = calculate_crc32((uint8_t*)&protocolId, 4, 0);
+      // uint32_t protocolId = host_to_network(packetInfo.protocolId);
+        // uint32_t crc32 = calculate_crc32((uint8_t*)&protocolId, 4, 0);
 
         FragmentPacket fragmentPacket;
-        fragmentPacket.crc32 = crc32;
+       
         fragmentPacket.fragmentSize = fragmentSize;
+        fragmentPacket.crc32 = 0;
         //fragmentPacket.crc32 = crc32;
 
         fragmentPacket.sequence = sequence;
@@ -275,7 +295,7 @@ bool SplitPacketIntoFragments(uint16_t sequence, const uint8_t* packetData, int 
 
         FlushBits(writer);
 
-        /*
+        
         uint32_t protocolId = host_to_network(ProtocolId);
         uint32_t crc32 = calculate_crc32((uint8_t*)&protocolId, 4, 0);
         crc32 = calculate_crc32(fragmentPackets[i].data, GetBytesProcessed(writer), crc32);
@@ -283,7 +303,7 @@ bool SplitPacketIntoFragments(uint16_t sequence, const uint8_t* packetData, int 
 
         *((uint32_t*)fragmentPackets[i].data) = host_to_network(crc32);
         
-        */
+        
 
         printf("fragment packet %d: %d bytes\n", i, GetBytesProcessed(writer));
 
@@ -309,8 +329,8 @@ bool ProcessFragmentPacket(Stream& stream) {
     }
 
 
-    uint8_t data[200];
-    if (!ProcessFragment(packetBuffer, data + PacketFragmentHeaderBytes, fragmentPacket.fragmentSize, fragmentPacket.sequence, fragmentPacket.fragmentId, fragmentPacket.numFragments)) {
+    //uint8_t data[200];
+    if (!ProcessFragment(packetBuffer, (uint8_t*)stream.m_data + PacketFragmentHeaderBytes, fragmentPacket.fragmentSize, fragmentPacket.sequence, fragmentPacket.fragmentId, fragmentPacket.numFragments)) {
         printf("error: failed to process fragment\n");
         return false;
     }
