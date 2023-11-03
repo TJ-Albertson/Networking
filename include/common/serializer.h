@@ -297,7 +297,7 @@ bool SerializeInteger(Stream& stream, int32_t& value, int32_t min, int32_t max)
 
         uint32_t unsigned_value = ReadBits(stream, bits);
         value = (int32_t)unsigned_value + min;
-        stream.m_bitsProcessed += bits;
+        //stream.m_bitsProcessed += bits;
         return true;
     }
 }
