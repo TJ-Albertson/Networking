@@ -197,7 +197,7 @@ int RecievePackets(SocketHandle handle, Address& sender, const void* data, int s
     unsigned int from_address = ntohl(from.sin_addr.s_addr);
     unsigned int from_port = ntohs(from.sin_port);
 
-    sender.address = from_address;
+    sender.ipv4 = from_address;
 
     return bytes;
     // process received packet

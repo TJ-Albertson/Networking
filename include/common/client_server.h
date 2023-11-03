@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <assert.h>
+#include <inttypes.h>
 
 #include "serializer.h"
 #include "address.h"
@@ -183,7 +184,7 @@ struct ServerChallengeHash {
 uint64_t CalculateChallengeHashKey(const Address& address, uint64_t clientSalt, uint64_t serverSeed)
 {
     char buffer[256];
-    const char* addressString = address.ToString(buffer, sizeof(buffer));
+    const char* addressString = AddressToString(address, buffer, sizeof(buffer));
     const int addressLength = (int)strlen(addressString);
     return murmur_hash_64(&serverSeed, 8, murmur_hash_64(&clientSalt, 8, murmur_hash_64(addressString, addressLength, 0)));
 }
@@ -269,19 +270,19 @@ void ServerReceivePackets(Server& server, double time)
 
         switch (packet->GetType()) {
         case PACKET_CONNECTION_REQUEST:
-            ServerProcessConnectionRequest(*(ConnectionRequestPacket*)packet, address, time);
+            ServerProcessConnectionRequest(server, * (ConnectionRequestPacket*)packet, address, time);
             break;
 
         case PACKET_CONNECTION_RESPONSE:
-            ServerProcessConnectionResponse(*(ConnectionResponsePacket*)packet, address, time);
+            ServerProcessConnectionResponse(server, *(ConnectionResponsePacket*)packet, address, time);
             break;
 
         case PACKET_CONNECTION_KEEP_ALIVE:
-            ServerProcessConnectionKeepAlive(*(ConnectionKeepAlivePacket*)packet, address, time);
+            ServerProcessConnectionKeepAlive(server, *(ConnectionKeepAlivePacket*)packet, address, time);
             break;
 
         case PACKET_CONNECTION_DISCONNECT:
-            ServerProcessConnectionDisconnect(*(ConnectionDisconnectPacket*)packet, address, time);
+            ServerProcessConnectionDisconnect(server, *(ConnectionDisconnectPacket*)packet, address, time);
             break;
 
         default:
@@ -300,8 +301,8 @@ void ServerCheckForTimeOut(Server& server, double time)
 
         if (server.m_clientData[i].lastPacketReceiveTime + KeepAliveTimeOut < time) {
             char buffer[256];
-            const char* addressString = server.m_clientAddress[i].ToString(buffer, sizeof(buffer));
-            printf("client %d timed out (client address = %s, client salt = %" PRIx64 ", challenge salt = %" PRIx64 ")\n", i, addressString, m_clientSalt[i], m_challengeSalt[i]);
+            const char* addressString = AddressToString(server.m_clientAddress[i], buffer, sizeof(buffer));
+            printf("client %d timed out (client address = %s, client salt = %" PRIx64 ", challenge salt = %" PRIx64 ")\n", i, addressString, server.m_clientSalt[i], server.m_challengeSalt[i]);
             ServerDisconnectClient(server, i, time);
         }
     }
@@ -327,10 +328,10 @@ int ServerFindFreeClientIndex(Server& server)
     return -1;
 }
 
-int ServerFindExistingClientIndex(Server& server, Address& address, uint64_t clientSalt, uint64_t challengeSalt)
+int ServerFindExistingClientIndex(Server& server, const Address& address, uint64_t clientSalt, uint64_t challengeSalt)
 {
     for (int i = 0; i < MaxClients; ++i) {
-        if (server.m_clientConnected[i] && server.m_clientAddress[i] == address && server.m_clientSalt[i] == clientSalt && server.m_challengeSalt[i] == challengeSalt)
+        if (server.m_clientConnected[i] && server.m_clientAddress[i].ipv4 == address.ipv4 && server.m_clientSalt[i] == clientSalt && server.m_challengeSalt[i] == challengeSalt)
             return i;
     }
     return -1;
@@ -357,7 +358,7 @@ void ServerConnectClient(Server& server, int clientIndex, const Address& address
     server.m_clientData[clientIndex].lastPacketReceiveTime = time;
 
     char buffer[256];
-    const char* addressString = address.ToString(buffer, sizeof(buffer));
+    const char* addressString = AddressToString(address, buffer, sizeof(buffer));
     printf("client %d connected (client address = %s, client salt = %" PRIx64 ", challenge salt = %" PRIx64 ")\n", clientIndex, addressString, clientSalt, challengeSalt);
 
     ConnectionKeepAlivePacket* connectionKeepAlivePacket;
@@ -375,8 +376,8 @@ void ServerDisconnectClient(Server& server, int clientIndex, double time)
     assert(server.m_clientConnected[clientIndex]);
 
     char buffer[256];
-    const char* addressString = server.m_clientAddress[clientIndex].ToString(buffer, sizeof(buffer));
-    printf("client %d disconnected: (client address = %s, client salt = %" PRIx64 ", challenge salt = %" PRIx64 ")\n", clientIndex, addressString, m_clientSalt[clientIndex], m_challengeSalt[clientIndex]);
+    const char* addressString = AddressToString(server.m_clientAddress[clientIndex], buffer, sizeof(buffer));
+    printf("client %d disconnected: (client address = %s, client salt = %" PRIx64 ", challenge salt = %" PRIx64 ")\n", clientIndex, addressString, server.m_clientSalt[clientIndex], server.m_challengeSalt[clientIndex]);
 
     ConnectionDisconnectPacket* packet;
     packet->client_salt = server.m_clientSalt[clientIndex];
@@ -394,7 +395,7 @@ bool ServerClientIsConnected(Server& server, const Address& address, uint64_t cl
     for (int i = 0; i < MaxClients; ++i) {
         if (!server.m_clientConnected[i])
             continue;
-        if (server.m_clientAddress[i] == address && server.m_clientSalt[i] == clientSalt)
+        if (server.m_clientAddress[i].ipv4 == address.ipv4 && server.m_clientSalt[i] == clientSalt)
             return true;
     }
     return false;
@@ -410,7 +411,7 @@ ServerChallengeEntry* ServerFindChallenge(Server& server, const Address& address
     printf("challenge hash key = %" PRIx64 "\n", key);
     printf("challenge hash index = %d\n", index);
 
-    if (server.m_challengeHash.exists[index] && server.m_challengeHash.entries[index].client_salt == clientSalt && server.m_challengeHash.entries[index].address == address && server.m_challengeHash.entries[index].create_time + ChallengeTimeOut >= time) {
+    if (server.m_challengeHash.exists[index] && server.m_challengeHash.entries[index].client_salt == clientSalt && server.m_challengeHash.entries[index].address.ipv4 == address.ipv4 && server.m_challengeHash.entries[index].create_time + ChallengeTimeOut >= time) {
         printf("found challenge entry at index %d\n", index);
 
         return &server.m_challengeHash.entries[index];
@@ -445,7 +446,7 @@ ServerChallengeEntry* ServerFindOrInsertChallenge(Server& server, const Address&
         return entry;
     }
 
-    if (server.m_challengeHash.exists[index] && server.m_challengeHash.entries[index].client_salt == clientSalt && server.m_challengeHash.entries[index].address == address) {
+    if (server.m_challengeHash.exists[index] && server.m_challengeHash.entries[index].client_salt == clientSalt && server.m_challengeHash.entries[index].address.ipv4 == address.ipv4) {
         printf("found existing challenge hash entry at index %d\n", index);
 
         return &server.m_challengeHash.entries[index];
@@ -469,7 +470,7 @@ ServerChallengeEntry* ServerFindOrInsertChallenge(Server& server, const Address&
 void ServerProcessConnectionRequest(Server& server, const ConnectionRequestPacket& packet, const Address& address, double time)
 {
     char buffer[256];
-    const char* addressString = address.ToString(buffer, sizeof(buffer));
+    const char* addressString = AddressToString(address, buffer, sizeof(buffer));
     printf("processing connection request packet from: %s\n", addressString);
 
     if (server.m_numConnectedClients == MaxClients) {
@@ -478,7 +479,7 @@ void ServerProcessConnectionRequest(Server& server, const ConnectionRequestPacke
         connectionDeniedPacket->client_salt = packet.client_salt;
         connectionDeniedPacket->reason = CONNECTION_DENIED_SERVER_FULL;
 
-        SendPacket(m_socket, m_packetFactory, address, connectionDeniedPacket);
+        SendPacket(server.m_socket->m_socket, m_packetFactory, address, connectionDeniedPacket);
         return;
     }
 
@@ -487,21 +488,21 @@ void ServerProcessConnectionRequest(Server& server, const ConnectionRequestPacke
         ConnectionDeniedPacket* connectionDeniedPacket;
         connectionDeniedPacket->client_salt = packet.client_salt;
         connectionDeniedPacket->reason = CONNECTION_DENIED_ALREADY_CONNECTED;
-        SendPacket(m_socket, m_packetFactory, address, connectionDeniedPacket);
+        SendPacket(server.m_socket->m_socket, m_packetFactory, address, connectionDeniedPacket);
         return;
     }
 
-    ServerChallengeEntry* entry = FindOrInsertChallenge(address, packet.client_salt, time);
+    ServerChallengeEntry* entry = ServerFindOrInsertChallenge(server, address, packet.client_salt, time);
     if (!entry)
         return;
 
     assert(entry);
-    assert(entry->address == address);
+    assert(entry->address.ipv4 == address.ipv4);
     assert(entry->client_salt == packet.client_salt);
 
     if (entry->last_packet_send_time + ChallengeSendRate < time) {
         printf("sending connection challenge to %s (challenge salt = %" PRIx64 ")\n", addressString, entry->challenge_salt);
-        ConnectionChallengePacket* connectionChallengePacket = (ConnectionChallengePacket*)m_packetFactory->CreatePacket(PACKET_CONNECTION_CHALLENGE);
+        ConnectionChallengePacket* connectionChallengePacket;
         connectionChallengePacket->client_salt = packet.client_salt;
         connectionChallengePacket->challenge_salt = entry->challenge_salt;
         SendPacket(m_socket, m_packetFactory, address, connectionChallengePacket);
@@ -527,7 +528,7 @@ void ServerProcessConnectionRequest(Server& server, const ConnectionRequestPacke
     }
 
     char buffer[256];
-    const char* addressString = address.ToString(buffer, sizeof(buffer));
+    const char* addressString = AddressToString(address, buffer, sizeof(buffer));
     printf("processing connection response from client %s (client salt = %" PRIx64 ", challenge salt = %" PRIx64 ")\n", addressString, packet.client_salt, packet.challenge_salt);
 
     ServerChallengeEntry* entry = ServerFindChallenge(server, address, packet.client_salt, time);
@@ -535,7 +536,7 @@ void ServerProcessConnectionRequest(Server& server, const ConnectionRequestPacke
         return;
 
     assert(entry);
-    assert(entry->address == address);
+    assert(entry->address.ipv4 == address.ipv4);
     assert(entry->client_salt == packet.client_salt);
 
     if (entry->challenge_salt != packet.challenge_salt) {
@@ -564,7 +565,7 @@ void ServerProcessConnectionRequest(Server& server, const ConnectionRequestPacke
     ServerConnectClient(server, clientIndex, address, packet.client_salt, packet.challenge_salt, time);
 }
 
- void ServerProcessConnectionKeepAlive(Server& server, const ConnectionKeepAlivePacket& packet, const Address& address, double time)
+ void ServerProcessConnectionKeepAlive(Server& server, const ConnectionKeepAlivePacket& packet, Address& address, double time)
 {
     const int clientIndex = ServerFindExistingClientIndex(server, address, packet.client_salt, packet.challenge_salt);
     if (clientIndex == -1)
@@ -576,7 +577,7 @@ void ServerProcessConnectionRequest(Server& server, const ConnectionRequestPacke
     server.m_clientData[clientIndex].lastPacketReceiveTime = time;
 }
 
-void ServerProcessConnectionDisconnect(Server& server, const ConnectionDisconnectPacket& packet, const Address& address, double time)
+void ServerProcessConnectionDisconnect(Server& server, const ConnectionDisconnectPacket& packet, Address& address, double time)
 {
     const int clientIndex = ServerFindExistingClientIndex(server, address, packet.client_salt, packet.challenge_salt);
     if (clientIndex == -1)
@@ -681,7 +682,7 @@ void ClientSendPackets(Client& client, double time)
             return;
 
         char buffer[256];
-        const char* addressString = client.m_serverAddress.ToString(buffer, sizeof(buffer));
+        const char* addressString = AddressToString(client.m_serverAddress, buffer, sizeof(buffer));
         printf("client sending connection request to server: %s\n", addressString);
 
         ConnectionRequestPacket* packet;
@@ -695,10 +696,10 @@ void ClientSendPackets(Client& client, double time)
             return;
 
         char buffer[256];
-        const char* addressString = m_serverAddress.ToString(buffer, sizeof(buffer));
+        const char* addressString = AddressToString(client.m_serverAddress, buffer, sizeof(buffer));
         printf("client sending challenge response to server: %s\n", addressString);
 
-        ConnectionResponsePacket* packet = (ConnectionResponsePacket*);
+        ConnectionResponsePacket* packet;
         packet->client_salt = client.m_clientSalt;
         packet->challenge_salt = client.m_challengeSalt;
 
@@ -767,7 +768,7 @@ void ClientCheckForTimeOut(Client& client, double time)
         if (client.m_clientSaltExpiryTime < time) {
             client.m_clientSalt = GenerateSalt();
             client.m_clientSaltExpiryTime = time + ClientSaltTimeout;
-            printf("client salt timed out. new client salt is %" PRIx64 "\n", m_clientSalt);
+            printf("client salt timed out. new client salt is %" PRIx64 "\n", client.m_clientSalt);
         }
     } break;
 
@@ -821,11 +822,11 @@ void ClientProcessConnectionDenied(Client& client, const ConnectionDeniedPacket&
     if (packet.client_salt != client.m_clientSalt)
         return;
 
-    if (address != client.m_serverAddress)
+    if (address.ipv4 != client.m_serverAddress.ipv4)
         return;
 
     char buffer[256];
-    const char* addressString = address.ToString(buffer, sizeof(buffer));
+    const char* addressString = AddressToString(address, buffer, sizeof(buffer));
     if (packet.reason == CONNECTION_DENIED_SERVER_FULL) {
         printf("client received connection denied from server: %s (server is full)\n", addressString);
         client.m_clientState = CLIENT_STATE_CONNECTION_DENIED_FULL;
@@ -843,11 +844,11 @@ void ClientProcessConnectionChallenge(Client& client, const ConnectionChallengeP
     if (packet.client_salt != client.m_clientSalt)
         return;
 
-    if (address != client.m_serverAddress)
+    if (address.ipv4 != client.m_serverAddress.ipv4)
         return;
 
     char buffer[256];
-    const char* addressString = address.ToString(buffer, sizeof(buffer));
+    const char* addressString = AddressToString(address, buffer, sizeof(buffer));
     printf("client received connection challenge from server: %s (challenge salt = %" PRIx64 ")\n", addressString, packet.challenge_salt);
 
     client.m_challengeSalt = packet.challenge_salt;
@@ -868,12 +869,12 @@ void ClientProcessConnectionKeepAlive(Client& client, const ConnectionKeepAliveP
     if (packet.challenge_salt != client.m_challengeSalt)
         return;
 
-    if (address != client.m_serverAddress)
+    if (address.ipv4 != client.m_serverAddress.ipv4)
         return;
 
     if (client.m_clientState == CLIENT_STATE_SENDING_CHALLENGE_RESPONSE) {
         char buffer[256];
-        const char* addressString = address.ToString(buffer, sizeof(buffer));
+        const char* addressString = AddressToString(address, buffer, sizeof(buffer));
         printf("client is now connected to server: %s\n", addressString);
         client.m_clientState = CLIENT_STATE_CONNECTED;
     }
@@ -892,7 +893,7 @@ void ClientProcessConnectionDisconnect(Client& client, const ConnectionDisconnec
     if (packet.challenge_salt != client.m_challengeSalt)
         return;
 
-    if (address != client.m_serverAddress)
+    if (address.ipv4 != client.m_serverAddress.ipv4)
         return;
 
     ClientDisconnect(client, time);

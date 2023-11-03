@@ -520,14 +520,14 @@ bool serialize_uint64_internal(Stream& stream, uint64_t& value)
     } while (0)
 
 
-#define serialize_enum(stream, value, type, num_entries)        \
+#define serialize_enum(stream, value, enum_type, num_entries)        \
     do {                                                        \
         uint32_t int_value;                                     \
-        if (stream->type == WRITE)                              \
+        if (stream.type == WRITE)                              \
             int_value = value;                                  \
         serialize_int(stream, int_value, 0, num_entries - 1);   \
-        if (stream->type == READ)                               \
-            value = (type)value;                                \
+        if (stream.type == READ)                               \
+            value = (enum_type)value;                                \
     } while (0) 
 
 

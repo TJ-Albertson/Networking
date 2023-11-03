@@ -165,18 +165,18 @@ int main()
             pair.second -= deltaTime;
         }
     
-        if (sender.address <= 0 || sender.address != -858993460) {
+        if (sender.ipv4 <= 0 || sender.ipv4 != -858993460) {
             // Check ip address
-            if (clients.find(sender.address) != clients.end()) {
+            if (clients.find(sender.ipv4) != clients.end()) {
                 // Refresh time
-                clients[sender.address] = currentTime;
+                clients[sender.ipv4] = currentTime;
             } else {
-                char* decode_addr = DecodePrintAddress(sender.address);
+                char* decode_addr = DecodePrintAddress(sender.ipv4);
                 console.AddLog("[%s INFO]: Client at %s connected", timeString, decode_addr);      
-                clients[sender.address] = currentTime;
+                clients[sender.ipv4] = currentTime;
             }
 
-            console.AddLog("[%s INFO]: Client %d Message,", timeString, sender.address);
+            console.AddLog("[%s INFO]: Client %d Message,", timeString, sender.ipv4);
             
             console.AddLog("  packet.x: %d", packet.x);
             console.AddLog("  packet.y: %d", packet.y);

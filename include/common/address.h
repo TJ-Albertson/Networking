@@ -30,7 +30,7 @@
 #endif
 
 typedef struct Address {
-    unsigned int address;
+    unsigned int ipv4;
     unsigned short port;
     sockaddr_in sock_address;
     unsigned char a;
@@ -49,7 +49,7 @@ int CreateAddress(Address& c_address, unsigned char a, unsigned char b, unsigned
     addr.sin_addr.s_addr = htonl(address);
     addr.sin_port = htons(port);
 
-    c_address.address = address;
+    c_address.ipv4 = address;
     c_address.port = port;
     c_address.sock_address = addr;
 
@@ -73,6 +73,11 @@ char* DecodePrintAddress(unsigned int address) {
     char buffer[20]; // Make sure the buffer is large enough to hold your formatted string
     sprintf(buffer, "%d.%d.%d.%d", static_cast<int>(a), static_cast<int>(b), static_cast<int>(c), static_cast<int>(d));
 
+    return buffer;
+}
+
+const char* AddressToString(Address address, char* buffer, int bufferSize) {
+    sprintf(buffer, "%d.%d.%d.%d", static_cast<int>(address.a), static_cast<int>(address.b), static_cast<int>(address.c), static_cast<int>(address.d));
     return buffer;
 }
 
