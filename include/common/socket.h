@@ -102,7 +102,7 @@ const int PROTOCOL_ID = 57;
 
 
 
-bool SendPacket(SocketHandle handle, Address destination, void* data, int size)
+bool SendPacket(SocketHandle handle, const Address destination, void* data, int size)
 {
     uint8_t buffer[2000];
     

@@ -264,13 +264,17 @@ void ServerReceivePackets(Server& server, double time)
 {
     while (true) {
         Address address;
+
         Packet* packet = ReceivePacket(m_socket, m_packetFactory, address);
+
+
         if (!packet)
             break;
 
         switch (packet->GetType()) {
+
         case PACKET_CONNECTION_REQUEST:
-            ServerProcessConnectionRequest(server, * (ConnectionRequestPacket*)packet, address, time);
+            ServerProcessConnectionRequest(server, *(ConnectionRequestPacket*)packet, address, time);
             break;
 
         case PACKET_CONNECTION_RESPONSE:
@@ -488,7 +492,12 @@ void ServerProcessConnectionRequest(Server& server, const ConnectionRequestPacke
         ConnectionDeniedPacket* connectionDeniedPacket;
         connectionDeniedPacket->client_salt = packet.client_salt;
         connectionDeniedPacket->reason = CONNECTION_DENIED_ALREADY_CONNECTED;
+
+        PacketData packetdata;
+
+
         SendPacket(server.m_socket->m_socket, m_packetFactory, address, connectionDeniedPacket);
+
         return;
     }
 
