@@ -64,10 +64,6 @@ int main()
 
             int numBytes = (writeStream.m_bitsProcessed + align_bits) / 8;
 
-            printf("align_bits: %d\n", align_bits);
-
-            printf("writeStream.m_bitsProcessed + align_bits: %d\n", writeStream.m_bitsProcessed + align_bits);
-
             SendPacket(socket, address, (void*)buffer, numBytes);
             continue;
         }
@@ -101,14 +97,6 @@ int main()
             int align_bits = GetAlignBits(writeStream);
 
             int numBytes = (writeStream.m_bitsProcessed + align_bits) / 8;
-
-            
-
-            printf("align_bits: %d\n", align_bits);
-
-            printf("writeStream.m_bitsProcessed: %d\n", writeStream.m_bitsProcessed);
-
-            printf("numBytes: %d\n", numBytes);
 
             SendPacket(socket, address, (void*)buffer, numBytes);
             continue;

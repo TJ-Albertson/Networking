@@ -29,6 +29,7 @@ struct PacketInfo {
         context = NULL;
     }
 };
+
 enum TestPacketTypes {
     PACKET_FRAGMENT = 0, // IMPORTANT: packet type 0 indicates a packet fragment
 

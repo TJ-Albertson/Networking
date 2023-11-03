@@ -11,6 +11,11 @@
 
 typedef int SocketHandle;
 
+typedef struct Socket {
+    uint16_t m_port;
+    SocketHandle m_socket;
+} Socket;
+
 bool InitializeSockets()
 {
 #if PLATFORM == PLATFORM_WINDOWS

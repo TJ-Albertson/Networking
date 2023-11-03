@@ -28,7 +28,18 @@ void packet_switch(int packet_type, Stream& readStream) {
 
         break;
     case 2:
-        printf("You selected 2.\n");
+        printf("TestPacketB recieved\n");
+        
+        TestPacketB testpacket;
+
+        testpacket.Serialize(readStream);
+
+        printf("testpacket.numItems %d\v", testpacket.numItems);
+
+        printf("testpacket.items[89]: %d\n", testpacket.items[89]);
+        printf("testpacket.items[129]: %d\n", testpacket.items[129]);
+        printf("testpacket.items[1108]: %d\n", testpacket.items[1108]);
+
         break;
     case 3:
         printf("You selected 3.\n");

@@ -490,11 +490,46 @@ bool serialize_bytes_internal(Stream& stream, uint8_t* data, int bytes)
     return SerializeBytes(stream, data, bytes);
 }
 
-    #define serialize_bytes(stream, data, bytes)                           \
-    do {                                                               \
+#define serialize_bytes(stream, data, bytes)                \
+    do {                                                    \
         if (!serialize_bytes_internal(stream, data, bytes)) \
-            return false;                                              \
+            return false;                                   \
     } while (0)
+
+
+bool serialize_uint64_internal(Stream& stream, uint64_t& value)
+{
+    uint32_t hi, lo;
+    if (stream.type == WRITE) {
+        lo = value & 0xFFFFFFFF;
+        hi = value >> 32;
+    }
+
+    serialize_bits(stream, lo, 32);
+    serialize_bits(stream, hi, 32);
+
+    if (stream.type == READ)
+        value = (uint64_t(hi) << 32) | lo;
+    return true;
+}
+
+#define serialize_uint64(stream, value)                \
+    do {                                               \
+        if (!serialize_uint64_internal(stream, value)) \
+            return false;                              \
+    } while (0)
+
+
+#define serialize_enum(stream, value, type, num_entries)        \
+    do {                                                        \
+        uint32_t int_value;                                     \
+        if (stream->type == WRITE)                              \
+            int_value = value;                                  \
+        serialize_int(stream, int_value, 0, num_entries - 1);   \
+        if (stream->type == READ)                               \
+            value = (type)value;                                \
+    } while (0) 
+
 
 
 #endif

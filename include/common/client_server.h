@@ -7,6 +7,8 @@
 
 #include "serializer.h"
 #include "address.h"
+#include "hash.h"
+#include "socket.h"
 
 const uint32_t ProtocolId = 0x12341651;
 const int MaxPacketSize = 1200;
@@ -71,7 +73,7 @@ enum ConnectionDeniedReason {
     CONNECTION_DENIED_NUM_VALUES
 };
 
-struct ConnectionDeniedPackett {
+struct ConnectionDeniedPacket {
     uint64_t client_salt;
     ConnectionDeniedReason reason;
 
@@ -207,8 +209,6 @@ struct ServerClientData {
 typedef struct Server {
     Socket* m_socket; // socket for sending and receiving packets.
 
-    PacketFactory* m_packetFactory; // packet factory for creating and destroying packets.
-
     uint64_t m_serverSalt; // server salt. randomizes hash keys to eliminate challenge/response hash worst case attack.
 
     int m_numConnectedClients; // number of connected clients
@@ -226,25 +226,22 @@ typedef struct Server {
     ServerChallengeHash m_challengeHash;
 } Server;
 
-bool CreateServer(Socket& socket, PacketFactory& packetFactory)
+bool CreateServer(Server& server, Socket& socket)
 {
-    m_socket = &socket;
-    m_packetFactory = &packetFactory;
-    m_serverSalt = GenerateSalt();
-    m_numConnectedClients = 0;
+    server.m_socket = &socket;
+    server.m_serverSalt = GenerateSalt();
+    server.m_numConnectedClients = 0;
     for (int i = 0; i < MaxClients; ++i)
-        ResetClientState(i);
+        ServerResetClientState(server, i);
 }
 
-bool CleanServer()
+bool CleanServer(Server& server)
 {
-    assert(m_socket);
-    assert(m_packetFactory);
-    m_packetFactory = NULL;
-    m_socket = NULL;
+    assert(server.m_socket);
+    server.m_socket = NULL;
 }
 
-void ServerSendPacketsAll(Server& server double time)
+void ServerSendPacketsAll(Server& server, double time)
 {
     for (int i = 0; i < MaxClients; ++i) {
         if (!server.m_clientConnected[i])
@@ -253,17 +250,16 @@ void ServerSendPacketsAll(Server& server double time)
         if (server.m_clientData[i].lastPacketSendTime + ConnectionKeepAliveSendRate > time)
             return;
 
-        ConnectionKeepAlivePacket* packet = (ConnectionKeepAlivePacket*)m_packetFactory->CreatePacket(PACKET_CONNECTION_KEEP_ALIVE);
-
+        ConnectionKeepAlivePacket* packet;
 
         packet->client_salt = server.m_clientSalt[i];
         packet->challenge_salt = server.m_challengeSalt[i];
 
-        SendPacketToConnectedClient(i, packet, time);
+        ServerSendPacketToConnectedClient(server, i, packet, time);
     }
 }
 
-void ServerReceivePackets(double time)
+void ServerReceivePackets(Server& server, double time)
 {
     while (true) {
         Address address;
@@ -273,19 +269,19 @@ void ServerReceivePackets(double time)
 
         switch (packet->GetType()) {
         case PACKET_CONNECTION_REQUEST:
-            ProcessConnectionRequest(*(ConnectionRequestPacket*)packet, address, time);
+            ServerProcessConnectionRequest(*(ConnectionRequestPacket*)packet, address, time);
             break;
 
         case PACKET_CONNECTION_RESPONSE:
-            ProcessConnectionResponse(*(ConnectionResponsePacket*)packet, address, time);
+            ServerProcessConnectionResponse(*(ConnectionResponsePacket*)packet, address, time);
             break;
 
         case PACKET_CONNECTION_KEEP_ALIVE:
-            ProcessConnectionKeepAlive(*(ConnectionKeepAlivePacket*)packet, address, time);
+            ServerProcessConnectionKeepAlive(*(ConnectionKeepAlivePacket*)packet, address, time);
             break;
 
         case PACKET_CONNECTION_DISCONNECT:
-            ProcessConnectionDisconnect(*(ConnectionDisconnectPacket*)packet, address, time);
+            ServerProcessConnectionDisconnect(*(ConnectionDisconnectPacket*)packet, address, time);
             break;
 
         default:
@@ -306,7 +302,7 @@ void ServerCheckForTimeOut(Server& server, double time)
             char buffer[256];
             const char* addressString = server.m_clientAddress[i].ToString(buffer, sizeof(buffer));
             printf("client %d timed out (client address = %s, client salt = %" PRIx64 ", challenge salt = %" PRIx64 ")\n", i, addressString, m_clientSalt[i], m_challengeSalt[i]);
-            server.DisconnectClient(i, time);
+            ServerDisconnectClient(server, i, time);
         }
     }
 }
@@ -315,98 +311,98 @@ void ServerResetClientState(Server& server, int clientIndex)
 {
     assert(clientIndex >= 0);
     assert(clientIndex < MaxClients);
-    m_clientConnected[clientIndex] = false;
-    m_clientSalt[clientIndex] = 0;
-    m_challengeSalt[clientIndex] = 0;
-    m_clientAddress[clientIndex] = Address();
-    m_clientData[clientIndex] = ServerClientData();
+    server.m_clientConnected[clientIndex] = false;
+    server.m_clientSalt[clientIndex] = 0;
+    server.m_challengeSalt[clientIndex] = 0;
+    server.m_clientAddress[clientIndex] = Address();
+    server.m_clientData[clientIndex] = ServerClientData();
 }
 
-int ServerFindFreeClientIndex() const
+int ServerFindFreeClientIndex(Server& server)
 {
     for (int i = 0; i < MaxClients; ++i) {
-        if (!m_clientConnected[i])
+        if (!server.m_clientConnected[i])
             return i;
     }
     return -1;
 }
 
-int ServerFindExistingClientIndex(const Address& address, uint64_t clientSalt, uint64_t challengeSalt) const
+int ServerFindExistingClientIndex(Server& server, Address& address, uint64_t clientSalt, uint64_t challengeSalt)
 {
     for (int i = 0; i < MaxClients; ++i) {
-        if (m_clientConnected[i] && m_clientAddress[i] == address && m_clientSalt[i] == clientSalt && m_challengeSalt[i] == challengeSalt)
+        if (server.m_clientConnected[i] && server.m_clientAddress[i] == address && server.m_clientSalt[i] == clientSalt && server.m_challengeSalt[i] == challengeSalt)
             return i;
     }
     return -1;
 }
 
-void ServerConnectClient(int clientIndex, const Address& address, uint64_t clientSalt, uint64_t challengeSalt, double time)
+void ServerConnectClient(Server& server, int clientIndex, const Address& address, uint64_t clientSalt, uint64_t challengeSalt, double time)
 {
-    assert(m_numConnectedClients >= 0);
-    assert(m_numConnectedClients < MaxClients - 1);
-    assert(!m_clientConnected[clientIndex]);
+    assert(server.m_numConnectedClients >= 0);
+    assert(server.m_numConnectedClients < MaxClients - 1);
+    assert(!server.m_clientConnected[clientIndex]);
 
-    m_numConnectedClients++;
+    server.m_numConnectedClients++;
 
-    m_clientConnected[clientIndex] = true;
-    m_clientSalt[clientIndex] = clientSalt;
-    m_challengeSalt[clientIndex] = challengeSalt;
-    m_clientAddress[clientIndex] = address;
+    server.m_clientConnected[clientIndex] = true;
+    server.m_clientSalt[clientIndex] = clientSalt;
+    server.m_challengeSalt[clientIndex] = challengeSalt;
+    server.m_clientAddress[clientIndex] = address;
 
-    m_clientData[clientIndex].address = address;
-    m_clientData[clientIndex].clientSalt = clientSalt;
-    m_clientData[clientIndex].challengeSalt = challengeSalt;
-    m_clientData[clientIndex].connectTime = time;
-    m_clientData[clientIndex].lastPacketSendTime = time;
-    m_clientData[clientIndex].lastPacketReceiveTime = time;
+    server.m_clientData[clientIndex].address = address;
+    server.m_clientData[clientIndex].clientSalt = clientSalt;
+    server.m_clientData[clientIndex].challengeSalt = challengeSalt;
+    server.m_clientData[clientIndex].connectTime = time;
+    server.m_clientData[clientIndex].lastPacketSendTime = time;
+    server.m_clientData[clientIndex].lastPacketReceiveTime = time;
 
     char buffer[256];
     const char* addressString = address.ToString(buffer, sizeof(buffer));
     printf("client %d connected (client address = %s, client salt = %" PRIx64 ", challenge salt = %" PRIx64 ")\n", clientIndex, addressString, clientSalt, challengeSalt);
 
-    ConnectionKeepAlivePacket* connectionKeepAlivePacket = (ConnectionKeepAlivePacket*)m_packetFactory->CreatePacket(PACKET_CONNECTION_KEEP_ALIVE);
-    connectionKeepAlivePacket->client_salt = m_clientSalt[clientIndex];
-    connectionKeepAlivePacket->challenge_salt = m_challengeSalt[clientIndex];
+    ConnectionKeepAlivePacket* connectionKeepAlivePacket;
+    connectionKeepAlivePacket->client_salt = server.m_clientSalt[clientIndex];
+    connectionKeepAlivePacket->challenge_salt = server.m_challengeSalt[clientIndex];
 
-    SendPacketToConnectedClient(clientIndex, connectionKeepAlivePacket, time);
+    ServerSendPacketToConnectedClient(server, clientIndex, connectionKeepAlivePacket, time);
 }
 
-void ServerDisconnectClient(int clientIndex, double time)
+void ServerDisconnectClient(Server& server, int clientIndex, double time)
 {
     assert(clientIndex >= 0);
     assert(clientIndex < MaxClients);
-    assert(m_numConnectedClients > 0);
-    assert(m_clientConnected[clientIndex]);
+    assert(server.m_numConnectedClients > 0);
+    assert(server.m_clientConnected[clientIndex]);
 
     char buffer[256];
-    const char* addressString = m_clientAddress[clientIndex].ToString(buffer, sizeof(buffer));
+    const char* addressString = server.m_clientAddress[clientIndex].ToString(buffer, sizeof(buffer));
     printf("client %d disconnected: (client address = %s, client salt = %" PRIx64 ", challenge salt = %" PRIx64 ")\n", clientIndex, addressString, m_clientSalt[clientIndex], m_challengeSalt[clientIndex]);
 
-    ConnectionDisconnectPacket* packet = (ConnectionDisconnectPacket*)m_packetFactory->CreatePacket(PACKET_CONNECTION_DISCONNECT);
-    packet->client_salt = m_clientSalt[clientIndex];
-    packet->challenge_salt = m_challengeSalt[clientIndex];
+    ConnectionDisconnectPacket* packet;
+    packet->client_salt = server.m_clientSalt[clientIndex];
+    packet->challenge_salt = server.m_challengeSalt[clientIndex];
 
-    SendPacketToConnectedClient(clientIndex, packet, time);
+    ServerSendPacketToConnectedClient(server, clientIndex, packet, time);
 
-    ResetClientState(clientIndex);
+    ServerResetClientState(server, clientIndex);
 
-    m_numConnectedClients--;
+    server.m_numConnectedClients--;
 }
 
-bool ServerClientIsConnected(const Address& address, uint64_t clientSalt) const
+bool ServerClientIsConnected(Server& server, const Address& address, uint64_t clientSalt)
 {
     for (int i = 0; i < MaxClients; ++i) {
-        if (!m_clientConnected[i])
+        if (!server.m_clientConnected[i])
             continue;
-        if (m_clientAddress[i] == address && m_clientSalt[i] == clientSalt)
+        if (server.m_clientAddress[i] == address && server.m_clientSalt[i] == clientSalt)
             return true;
     }
     return false;
 }
 
-ServerChallengeEntry* ServerFindChallenge(const Address& address, uint64_t clientSalt, double time)
+ServerChallengeEntry* ServerFindChallenge(Server& server, const Address& address, uint64_t clientSalt, double time)
 {
-    const uint64_t key = CalculateChallengeHashKey(address, clientSalt, m_serverSalt);
+    const uint64_t key = CalculateChallengeHashKey(address, clientSalt, server.m_serverSalt);
 
     int index = key % ChallengeHashSize;
 
@@ -414,18 +410,18 @@ ServerChallengeEntry* ServerFindChallenge(const Address& address, uint64_t clien
     printf("challenge hash key = %" PRIx64 "\n", key);
     printf("challenge hash index = %d\n", index);
 
-    if (m_challengeHash.exists[index] && m_challengeHash.entries[index].client_salt == clientSalt && m_challengeHash.entries[index].address == address && m_challengeHash.entries[index].create_time + ChallengeTimeOut >= time) {
+    if (server.m_challengeHash.exists[index] && server.m_challengeHash.entries[index].client_salt == clientSalt && server.m_challengeHash.entries[index].address == address && server.m_challengeHash.entries[index].create_time + ChallengeTimeOut >= time) {
         printf("found challenge entry at index %d\n", index);
 
-        return &m_challengeHash.entries[index];
+        return &server.m_challengeHash.entries[index];
     }
 
     return NULL;
 }
 
-ServerChallengeEntry* ServerFindOrInsertChallenge(const Address& address, uint64_t clientSalt, double time)
+ServerChallengeEntry* ServerFindOrInsertChallenge(Server& server, const Address& address, uint64_t clientSalt, double time)
 {
-    const uint64_t key = CalculateChallengeHashKey(address, clientSalt, m_serverSalt);
+    const uint64_t key = CalculateChallengeHashKey(address, clientSalt, server.m_serverSalt);
 
     int index = key % ChallengeHashSize;
 
@@ -433,10 +429,10 @@ ServerChallengeEntry* ServerFindOrInsertChallenge(const Address& address, uint64
     printf("challenge hash key = %" PRIx64 "\n", key);
     printf("challenge hash index = %d\n", index);
 
-    if (!m_challengeHash.exists[index] || (m_challengeHash.exists[index] && m_challengeHash.entries[index].create_time + ChallengeTimeOut < time)) {
+    if (!server.m_challengeHash.exists[index] || (server.m_challengeHash.exists[index] && server.m_challengeHash.entries[index].create_time + ChallengeTimeOut < time)) {
         printf("found empty entry in challenge hash at index %d\n", index);
 
-        ServerChallengeEntry* entry = &m_challengeHash.entries[index];
+        ServerChallengeEntry* entry = &server.m_challengeHash.entries[index];
 
         entry->client_salt = clientSalt;
         entry->challenge_salt = GenerateSalt();
@@ -444,49 +440,51 @@ ServerChallengeEntry* ServerFindOrInsertChallenge(const Address& address, uint64
         entry->create_time = time;
         entry->address = address;
 
-        m_challengeHash.exists[index] = 1;
+        server.m_challengeHash.exists[index] = 1;
 
         return entry;
     }
 
-    if (m_challengeHash.exists[index] && m_challengeHash.entries[index].client_salt == clientSalt && m_challengeHash.entries[index].address == address) {
+    if (server.m_challengeHash.exists[index] && server.m_challengeHash.entries[index].client_salt == clientSalt && server.m_challengeHash.entries[index].address == address) {
         printf("found existing challenge hash entry at index %d\n", index);
 
-        return &m_challengeHash.entries[index];
+        return &server.m_challengeHash.entries[index];
     }
 
     return NULL;
 }
 
 
- void ServerSendPacketToConnectedClient(int clientIndex, Packet* packet, double time)
+ void ServerSendPacketToConnectedClient(Server& server, int clientIndex, Packet* packet, double time)
 {
     assert(packet);
     assert(clientIndex >= 0);
     assert(clientIndex < MaxClients);
-    assert(m_clientConnected[clientIndex]);
-    m_clientData[clientIndex].lastPacketSendTime = time;
-    SendPacket(m_socket, m_packetFactory, m_clientAddress[clientIndex], packet);
+    assert(server.m_clientConnected[clientIndex]);
+    server.m_clientData[clientIndex].lastPacketSendTime = time;
+
+    SendPacket(server.m_socket, server.m_packetFactory, server.m_clientAddress[clientIndex], packet);
 }
 
-void ServerProcessConnectionRequest(const ConnectionRequestPacket& packet, const Address& address, double time)
+void ServerProcessConnectionRequest(Server& server, const ConnectionRequestPacket& packet, const Address& address, double time)
 {
     char buffer[256];
     const char* addressString = address.ToString(buffer, sizeof(buffer));
     printf("processing connection request packet from: %s\n", addressString);
 
-    if (m_numConnectedClients == MaxClients) {
+    if (server.m_numConnectedClients == MaxClients) {
         printf("connection denied: server is full\n");
-        ConnectionDeniedPacket* connectionDeniedPacket = (ConnectionDeniedPacket*)m_packetFactory->CreatePacket(PACKET_CONNECTION_DENIED);
+        ConnectionDeniedPacket* connectionDeniedPacket;
         connectionDeniedPacket->client_salt = packet.client_salt;
         connectionDeniedPacket->reason = CONNECTION_DENIED_SERVER_FULL;
+
         SendPacket(m_socket, m_packetFactory, address, connectionDeniedPacket);
         return;
     }
 
-    if (IsConnected(address, packet.client_salt)) {
+    if (ServerClientIsConnected(server, address, packet.client_salt)) {
         printf("connection denied: already connected\n");
-        ConnectionDeniedPacket* connectionDeniedPacket = (ConnectionDeniedPacket*)m_packetFactory->CreatePacket(PACKET_CONNECTION_DENIED);
+        ConnectionDeniedPacket* connectionDeniedPacket;
         connectionDeniedPacket->client_salt = packet.client_salt;
         connectionDeniedPacket->reason = CONNECTION_DENIED_ALREADY_CONNECTED;
         SendPacket(m_socket, m_packetFactory, address, connectionDeniedPacket);
@@ -511,18 +509,18 @@ void ServerProcessConnectionRequest(const ConnectionRequestPacket& packet, const
     }
 }
 
- void ServerProcessConnectionResponse(const ConnectionResponsePacket& packet, const Address& address, double time)
+ void ServerProcessConnectionResponse(Server& server, const ConnectionResponsePacket& packet, const Address& address, double time)
 {
-    const int existingClientIndex = FindExistingClientIndex(address, packet.client_salt, packet.challenge_salt);
+    const int existingClientIndex = ServerFindExistingClientIndex(server, address, packet.client_salt, packet.challenge_salt);
     if (existingClientIndex != -1) {
         assert(existingClientIndex >= 0);
         assert(existingClientIndex < MaxClients);
 
-        if (m_clientData[existingClientIndex].lastPacketSendTime + ConnectionConfirmSendRate < time) {
-            ConnectionKeepAlivePacket* connectionKeepAlivePacket = (ConnectionKeepAlivePacket*)m_packetFactory->CreatePacket(PACKET_CONNECTION_KEEP_ALIVE);
-            connectionKeepAlivePacket->client_salt = m_clientSalt[existingClientIndex];
-            connectionKeepAlivePacket->challenge_salt = m_challengeSalt[existingClientIndex];
-            SendPacketToConnectedClient(existingClientIndex, connectionKeepAlivePacket, time);
+        if (server.m_clientData[existingClientIndex].lastPacketSendTime + ConnectionConfirmSendRate < time) {
+            ConnectionKeepAlivePacket* connectionKeepAlivePacket;
+            connectionKeepAlivePacket->client_salt = server.m_clientSalt[existingClientIndex];
+            connectionKeepAlivePacket->challenge_salt = server.m_challengeSalt[existingClientIndex];
+            ServerSendPacketToConnectedClient(server, existingClientIndex, connectionKeepAlivePacket, time);
         }
 
         return;
@@ -532,7 +530,7 @@ void ServerProcessConnectionRequest(const ConnectionRequestPacket& packet, const
     const char* addressString = address.ToString(buffer, sizeof(buffer));
     printf("processing connection response from client %s (client salt = %" PRIx64 ", challenge salt = %" PRIx64 ")\n", addressString, packet.client_salt, packet.challenge_salt);
 
-    ServerChallengeEntry* entry = FindChallenge(address, packet.client_salt, time);
+    ServerChallengeEntry* entry = ServerFindChallenge(server, address, packet.client_salt, time);
     if (!entry)
         return;
 
@@ -545,10 +543,10 @@ void ServerProcessConnectionRequest(const ConnectionRequestPacket& packet, const
         return;
     }
 
-    if (m_numConnectedClients == MaxClients) {
+    if (server.m_numConnectedClients == MaxClients) {
         if (entry->last_packet_send_time + ConnectionChallengeSendRate < time) {
             printf("connection denied: server is full\n");
-            ConnectionDeniedPacket* connectionDeniedPacket = (ConnectionDeniedPacket*)m_packetFactory->CreatePacket(PACKET_CONNECTION_DENIED);
+            ConnectionDeniedPacket* connectionDeniedPacket;
             connectionDeniedPacket->client_salt = packet.client_salt;
             connectionDeniedPacket->reason = CONNECTION_DENIED_SERVER_FULL;
             SendPacket(m_socket, m_packetFactory, address, connectionDeniedPacket);
@@ -557,38 +555,40 @@ void ServerProcessConnectionRequest(const ConnectionRequestPacket& packet, const
         return;
     }
 
-    const int clientIndex = FindFreeClientIndex();
+    const int clientIndex = ServerFindFreeClientIndex(server);
 
     assert(clientIndex != -1);
     if (clientIndex == -1)
         return;
 
-    ConnectClient(clientIndex, address, packet.client_salt, packet.challenge_salt, time);
+    ServerConnectClient(server, clientIndex, address, packet.client_salt, packet.challenge_salt, time);
 }
 
- void ServerProcessConnectionKeepAlive(const ConnectionKeepAlivePacket& packet, const Address& address, double time)
+ void ServerProcessConnectionKeepAlive(Server& server, const ConnectionKeepAlivePacket& packet, const Address& address, double time)
 {
-    const int clientIndex = FindExistingClientIndex(address, packet.client_salt, packet.challenge_salt);
+    const int clientIndex = ServerFindExistingClientIndex(server, address, packet.client_salt, packet.challenge_salt);
     if (clientIndex == -1)
         return;
 
     assert(clientIndex >= 0);
     assert(clientIndex < MaxClients);
 
-    m_clientData[clientIndex].lastPacketReceiveTime = time;
+    server.m_clientData[clientIndex].lastPacketReceiveTime = time;
 }
 
-void ServerProcessConnectionDisconnect(const ConnectionDisconnectPacket& packet, const Address& address, double time)
+void ServerProcessConnectionDisconnect(Server& server, const ConnectionDisconnectPacket& packet, const Address& address, double time)
 {
-    const int clientIndex = FindExistingClientIndex(address, packet.client_salt, packet.challenge_salt);
+    const int clientIndex = ServerFindExistingClientIndex(server, address, packet.client_salt, packet.challenge_salt);
     if (clientIndex == -1)
         return;
 
     assert(clientIndex >= 0);
     assert(clientIndex < MaxClients);
 
-    DisconnectClient(clientIndex, time);
+    ServerDisconnectClient(server, clientIndex, time);
 }
+
+
 
 
 enum ClientState {
@@ -603,10 +603,8 @@ enum ClientState {
     CLIENT_STATE_CONNECTION_DENIED_ALREADY_CONNECTED
 };
 
-class Client {
+typedef struct Client {
     Socket* m_socket; // socket for sending and receiving packets.
-
-    PacketFactory* m_packetFactory; // packet factory for creating and deleting packets.
 
     ClientState m_clientState; // current client state
 
@@ -621,7 +619,7 @@ class Client {
     double m_lastPacketReceiveTime; // time we last received a packet from the server (used for timeouts).
 
     double m_clientSaltExpiryTime; // time the client salt expires and we roll another (in case of collision).
-}
+} Client;
 
 bool CreateClient(Socket& socket, PacketFactory& packetFactory)
 {

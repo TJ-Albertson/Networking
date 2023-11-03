@@ -8,6 +8,7 @@
 #include "serializer.h"
 #include "utils.h"
 #include "packet.h"
+//#include "packet_type_switch.h"
 
 
 
@@ -329,8 +330,6 @@ bool ProcessFragmentPacket(Stream& stream) {
 
     InitReadStream(reader, stream.m_data, stream.m_numBits / 8);
 
-
-
     if (!fragmentPacket.Serialize(reader)) {
         printf("error: fragment packet failed to serialize\n");
         return false;
@@ -352,32 +351,14 @@ bool ProcessFragmentPacket(Stream& stream) {
         uint8_t* data = packets[j].data;
         int size = packets[j].size;
 
-
-
         Stream readStream;
         InitReadStream(readStream, data, size);
 
-
         uint32_t packet_type = 0;
-
         serialize_bits(readStream, packet_type, 2);
 
-        printf("packet_type %d\n", packet_type);
-
-        TestPacketB testpacket;
-
-        testpacket.Serialize(readStream);
-
-        printf("testpacket.numItems %d\v", testpacket.numItems);
-
-
-        printf("testpacket.items[89]: %d\n", testpacket.items[89]);
-        printf("testpacket.items[129]: %d\n", testpacket.items[129]);
-        printf("testpacket.items[1108]: %d\n", testpacket.items[1108]);
-
-        //packet_switch()
+        //packet_switch(packet_type, readStream);
     }
-
 }
 
 #endif
