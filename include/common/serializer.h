@@ -254,7 +254,7 @@ bool SerializeBits(Stream& stream, uint32_t& value, int bits)
 
         uint32_t read_value = ReadBits(stream, bits);
         value = read_value;
-        stream.m_bitsProcessed += bits;
+        //stream.m_bitsProcessed += bits;
         return true;
     }
 }

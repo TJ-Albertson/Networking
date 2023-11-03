@@ -82,6 +82,10 @@ int main()
             testpacket.numItems = 1600;
             testpacket.randomFill();
 
+            printf("testpacket.items[89]: %d\n", testpacket.items[89]);
+            printf("testpacket.items[129]: %d\n", testpacket.items[129]);
+            printf("testpacket.items[1108]: %d\n", testpacket.items[1108]);
+
             Stream writeStream;
             InitWriteStream(writeStream, buffer, 2000);
 

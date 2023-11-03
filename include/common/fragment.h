@@ -219,8 +219,8 @@ void ReceivePackets(PacketBuffer& p_buffer, int& numPackets, PacketData packetDa
 
             uint8_t* dst = packet.data;
             for (int j = 0; j < (int)p_buffer.entries[index].numFragments; ++j) {
-                memcpy(dst, p_buffer.entries[index].fragmentData[i], p_buffer.entries[index].fragmentSize[i]);
-                dst += p_buffer.entries[index].fragmentSize[i];
+                memcpy(dst, p_buffer.entries[index].fragmentData[j], p_buffer.entries[index].fragmentSize[j]);
+                dst += p_buffer.entries[index].fragmentSize[j];
             }
 
             // free all fragments
@@ -262,6 +262,10 @@ bool SplitPacketIntoFragments(uint16_t sequence, const uint8_t* packetData, int 
         static const int MaxFragmentPacketSize = MaxFragmentSize + PacketFragmentHeaderBytes;
 
         fragmentPackets[i].data = new uint8_t[MaxFragmentPacketSize];
+
+
+        printf("fragmentSize: %d\n", fragmentSize);
+
 
         Stream writer;
 
@@ -323,8 +327,6 @@ bool ProcessFragmentPacket(Stream& stream) {
     
     Stream reader;
 
-    printf("stream.m_numBits / 8: %d\n", stream.m_numBits / 8);
-
     InitReadStream(reader, stream.m_data, stream.m_numBits / 8);
 
 
@@ -334,10 +336,8 @@ bool ProcessFragmentPacket(Stream& stream) {
         return false;
     }
 
-    printf("fragmentPacket.fragmentSize %d\n", fragmentPacket.fragmentSize);
-
     //uint8_t data[200];
-    if (!ProcessFragment(packetBuffer, (uint8_t*)stream.m_data + PacketFragmentHeaderBytes, fragmentPacket.fragmentSize, fragmentPacket.sequence, fragmentPacket.fragmentId, fragmentPacket.numFragments)) {
+    if (!ProcessFragment(packetBuffer, (uint8_t*)stream.m_data + 9/*PacketFragmentHeaderBytes*/, fragmentPacket.fragmentSize, fragmentPacket.sequence, fragmentPacket.fragmentId, fragmentPacket.numFragments)) {
         printf("error: failed to process fragment\n");
         return false;
     }
@@ -351,6 +351,29 @@ bool ProcessFragmentPacket(Stream& stream) {
 
         uint8_t* data = packets[j].data;
         int size = packets[j].size;
+
+
+
+        Stream readStream;
+        InitReadStream(readStream, data, size);
+
+
+        uint32_t packet_type = 0;
+
+        serialize_bits(readStream, packet_type, 2);
+
+        printf("packet_type %d\n", packet_type);
+
+        TestPacketB testpacket;
+
+        testpacket.Serialize(readStream);
+
+        printf("testpacket.numItems %d\v", testpacket.numItems);
+
+
+        printf("testpacket.items[89]: %d\n", testpacket.items[89]);
+        printf("testpacket.items[129]: %d\n", testpacket.items[129]);
+        printf("testpacket.items[1108]: %d\n", testpacket.items[1108]);
 
         //packet_switch()
     }
