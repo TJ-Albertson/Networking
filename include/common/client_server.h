@@ -332,42 +332,45 @@ struct Packet {
     }
 };
 
-bool ServerReceivePackets(Server& server, double time, Address address, Stream& stream)
+bool ServerReceivePackets(Server& server, double time, Address address, Stream& stream, int client_packet_type)
 {
-    int packet_type = 0;
+    switch (client_packet_type) {
 
-    switch (packet_type) {
-
-    case PACKET_CONNECTION_REQUEST:
-
-        ConnectionRequestPacket* packet;
+    case PACKET_CONNECTION_REQUEST: {
+        ConnectionRequestPacket* packet = (ConnectionRequestPacket*)malloc(sizeof(ConnectionRequestPacket));
         serialize_uint64(stream, packet->client_salt);
         serialize_bytes(stream, packet->data, 256);
 
         ServerProcessConnectionRequest(server, *(ConnectionRequestPacket*)packet, address, time);
-        break;
+    }
+    break;
 
-    case PACKET_CONNECTION_RESPONSE:
-
-        ConnectionResponsePacket* packet2;
+    case PACKET_CONNECTION_RESPONSE: {
+        ConnectionResponsePacket* packet2 = (ConnectionResponsePacket*)malloc(sizeof(ConnectionResponsePacket));
         serialize_uint64(stream, packet2->client_salt);
         serialize_uint64(stream, packet2->challenge_salt);
 
         ServerProcessConnectionResponse(server, *(ConnectionResponsePacket*)packet2, address, time);
-        break;
+    } 
+    break;
 
-    case PACKET_CONNECTION_KEEP_ALIVE:
-
-        ConnectionKeepAlivePacket* packet3;
+    case PACKET_CONNECTION_KEEP_ALIVE: {
+        ConnectionKeepAlivePacket* packet3 = (ConnectionKeepAlivePacket*)malloc(sizeof(ConnectionKeepAlivePacket));
         serialize_uint64(stream, packet3->client_salt);
         serialize_uint64(stream, packet3->challenge_salt);
 
         ServerProcessConnectionKeepAlive(server, *(ConnectionKeepAlivePacket*)packet3, address, time);
-        break;
+    }
+    break;
 
-    case PACKET_CONNECTION_DISCONNECT:
-        ServerProcessConnectionDisconnect(server, *(ConnectionDisconnectPacket*)packet, address, time);
-        break;
+    case PACKET_CONNECTION_DISCONNECT: {
+        ConnectionDisconnectPacket* packet4 = (ConnectionDisconnectPacket*)malloc(sizeof(ConnectionDisconnectPacket));
+        serialize_uint64(stream, packet4->client_salt);
+        serialize_uint64(stream, packet4->challenge_salt);
+
+        ServerProcessConnectionDisconnect(server, *(ConnectionDisconnectPacket*)packet4, address, time);
+    }
+    break;
 
     default:
         break;
@@ -829,29 +832,53 @@ void ClientSendPackets(Client& client, double time)
     }
 }
 
-void ClientReceivePackets(Client& client, double time)
+bool ClientReceivePackets(Client& client, double time, Address address, Stream& stream, int client_packet_type)
 {
 
-        switch (packet->GetType()) {
-        case PACKET_CONNECTION_DENIED:
-            ClientProcessConnectionDenied(client, *(ConnectionDeniedPacket*)packet, address, time);
-            break;
+    switch (client_packet_type) {
+    case PACKET_CONNECTION_DENIED: {
+        ConnectionDeniedPacket* packet = (ConnectionDeniedPacket*)malloc(sizeof(ConnectionDeniedPacket));
+        serialize_uint64(stream, packet->client_salt);
+        serialize_enum(stream, packet->reason, ConnectionDeniedReason, CONNECTION_DENIED_NUM_VALUES);
 
-        case PACKET_CONNECTION_CHALLENGE:
-            ClientProcessConnectionChallenge(client, *(ConnectionChallengePacket*)packet, address, time);
-            break;
+        ClientProcessConnectionDenied(client, *(ConnectionDeniedPacket*)packet, address, time);
+    }
 
-        case PACKET_CONNECTION_KEEP_ALIVE:
-            ClientProcessConnectionKeepAlive(client, *(ConnectionKeepAlivePacket*)packet, address, time);
-            break;
+    break;
 
-        case PACKET_CONNECTION_DISCONNECT:
-            ClientProcessConnectionDisconnect(client, *(ConnectionDisconnectPacket*)packet, address, time);
-            break;
+    case PACKET_CONNECTION_CHALLENGE: {
+        ConnectionChallengePacket* packet2 = (ConnectionChallengePacket*)malloc(sizeof(ConnectionChallengePacket));
+        serialize_uint64(stream, packet2->client_salt);
+        serialize_uint64(stream, packet2->challenge_salt);
 
-        default:
-            break;
-        }
+        ClientProcessConnectionChallenge(client, *(ConnectionChallengePacket*)packet2, address, time);
+    }
+
+    break;
+
+    case PACKET_CONNECTION_KEEP_ALIVE: {
+        ConnectionKeepAlivePacket* packet3 = (ConnectionKeepAlivePacket*)malloc(sizeof(ConnectionKeepAlivePacket));
+        serialize_uint64(stream, packet3->client_salt);
+        serialize_uint64(stream, packet3->challenge_salt);
+
+        ClientProcessConnectionKeepAlive(client, *(ConnectionKeepAlivePacket*)packet3, address, time);
+    }
+
+    break;
+
+    case PACKET_CONNECTION_DISCONNECT: {
+        ConnectionDisconnectPacket* packet4 = (ConnectionDisconnectPacket*)malloc(sizeof(ConnectionDisconnectPacket));
+        serialize_uint64(stream, packet4->client_salt);
+        serialize_uint64(stream, packet4->challenge_salt);
+
+        ClientProcessConnectionDisconnect(client, *(ConnectionDisconnectPacket*)packet4, address, time);
+    }
+
+    break;
+
+    default:
+        break;
+    }
 }
 
 void ClientCheckForTimeOut(Client& client, double time)

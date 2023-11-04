@@ -48,6 +48,8 @@ int main()
         timeInfo = localtime(&currentTime);
         strftime(timeString, 20, "%H:%M:%S", timeInfo);
 
+        ServerSendPacketsAll(server, currentTime);
+
         Address sender;
 
         int bytes_read = RecievePackets(socket, sender,
@@ -91,11 +93,13 @@ int main()
                 uint32_t client_server_type = 0;
                 serialize_int(readStream, client_server_type, 0, CLIENT_SERVER_NUM_PACKETS);
 
-                ServerReceivePackets(server, currentTime, sender, buffer);
-                continue;
+                ServerReceivePackets(server, currentTime, sender, readStream, client_server_type);
+               // continue;
             }
 
-            packet_switch(packet_type, readStream);
+            ServerCheckForTimeOut(server, currentTime);
+
+            //packet_switch(packet_type, readStream);
         }
     }
 }

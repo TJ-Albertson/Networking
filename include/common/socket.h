@@ -129,7 +129,7 @@ bool SendPacket(SocketHandle handle, const Address destination, void* data, int 
     } else {
          printf("sending packet as a regular packet\n");
 
-          int remainder = size % 4;
+         int remainder = size % 4;
          if (remainder != 0) {
             size = size + (4 - remainder);
          }

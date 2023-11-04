@@ -32,12 +32,13 @@ int main()
 
     while (1) { // Infinite loop
         printf("Enter a string (press Enter to send or 'q' to quit): ");
+       
 
         if (fgets(input, sizeof(input), stdin) == NULL) {
             // Handle error or EOF
             break;
         }
-        
+        printf("yo\n");
         // Check if the input is just a newline character (Enter key) and break the loop
         if (input[0] == '\n') {
             break;
