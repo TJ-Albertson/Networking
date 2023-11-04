@@ -5,17 +5,11 @@
 #include <time.h>
 
 #include "packet_type_switch.h"
-#include "socket.h"
+#include "client_server.h"
 
-typedef struct Client {
-    // unsigned int ip_addr;
-    float time;
-};
 
 // ip address and time
 std::map<unsigned int, time_t> clients;
-
-const int MaxClients = 64;
 
 int main()
 {
@@ -58,7 +52,7 @@ int main()
             break;
 
         // Unique message recieve
-        if (sender.address <= 0 || sender.address != -858993460) {
+        if (sender.ipv4 <= 0 || sender.ipv4 != -858993460) {
 
             printf("bytes_read: %d\n", bytes_read);
 
