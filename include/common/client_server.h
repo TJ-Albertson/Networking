@@ -798,6 +798,9 @@ void ClientSendPackets(Client& client, double time)
         ConnectionRequestPacket* packet = (ConnectionRequestPacket*)malloc(sizeof(ConnectionRequestPacket));
         packet->client_salt = client.m_clientSalt;
 
+
+        printf("pk.client_salt: %llu\n", client.m_clientSalt);
+
         ClientSendPacketToServer(client, packet, sizeof(ConnectionRequestPacket), time);
     } break;
 

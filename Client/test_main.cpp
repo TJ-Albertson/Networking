@@ -75,6 +75,9 @@ int main()
                 continue;
             }
 
+           
+
+
             uint32_t packet_type = 0;
             serialize_bits(readStream, packet_type, 2);
 
