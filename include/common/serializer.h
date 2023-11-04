@@ -3,6 +3,8 @@
 
 #include <assert.h>
 #include <stdint.h>
+#include <math.h>
+#include <string.h>
 
 template <uint32_t x>
 struct PopCount {

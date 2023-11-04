@@ -1,4 +1,3 @@
-#pragma once
 
 #include <iostream>
 #include <map>
@@ -35,6 +34,13 @@ int main()
     uint16_t sequence = 0;
     PacketData packets[PacketBufferSize];
     uint8_t buffer[MaxPacketSize];
+
+    Socket sock;
+    sock.m_port = port;
+    sock.m_socket = socket;
+
+    Server server;
+    CreateServer(server, sock);
 
     while (1) {
 
@@ -79,6 +85,15 @@ int main()
 
             uint32_t packet_type = 0;
             serialize_bits(readStream, packet_type, 2);
+
+            if (packet_type == 3) {
+
+                uint32_t client_server_type = 0;
+                serialize_int(readStream, client_server_type, 0, CLIENT_SERVER_NUM_PACKETS);
+
+                ServerReceivePackets(server, currentTime, sender, buffer);
+                continue;
+            }
 
             packet_switch(packet_type, readStream);
         }

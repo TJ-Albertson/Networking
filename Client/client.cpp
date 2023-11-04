@@ -1,4 +1,4 @@
-#include "socket.h"
+#include "client_server.h"
 
 int main()
 {
@@ -21,6 +21,14 @@ int main()
     CreateAddress(address, 127, 0, 0, 1, 30001);
 
     char input[100];
+
+    Socket sock;
+    sock.m_port = port;
+    sock.m_socket = socket;
+
+
+    Client client;
+    CreateClient(client, sock);
 
     while (1) { // Infinite loop
         printf("Enter a string (press Enter to send or 'q' to quit): ");
