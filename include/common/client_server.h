@@ -44,6 +44,35 @@ enum PacketTypes {
     CLIENT_SERVER_NUM_PACKETS
 };
 
+void printPackType(enum PacketTypes type)
+{
+    switch (type) {
+    case PACKET_CONNECTION_REQUEST:
+        printf("PACKET_CONNECTION_REQUEST\n");
+        break;
+    case PACKET_CONNECTION_DENIED:
+        printf("PACKET_CONNECTION_DENIED\n");
+        break;
+    case PACKET_CONNECTION_CHALLENGE:
+        printf("PACKET_CONNECTION_CHALLENGE\n");
+        break;
+    case PACKET_CONNECTION_RESPONSE:
+        printf("PACKET_CONNECTION_RESPONSE\n");
+        break;
+    case PACKET_CONNECTION_KEEP_ALIVE:
+        printf("PACKET_CONNECTION_KEEP_ALIVE\n");
+        break;
+    case PACKET_CONNECTION_DISCONNECT:
+        printf("PACKET_CONNECTION_DISCONNECT\n");
+        break;
+    case CLIENT_SERVER_NUM_PACKETS:
+        printf("CLIENT_SERVER_NUM_PACKETS\n");
+        break;
+    default:
+        printf("Unknown PacketType\n");
+    }
+}
+
 
 /*
 * CLIENT/SERVER PACKETS
@@ -292,12 +321,23 @@ void ServerSendPacketsAll(Server& server, double time)
         if (server.m_clientData[i].lastPacketSendTime + ConnectionKeepAliveSendRate > time)
             return;
 
-        ConnectionKeepAlivePacket* packet = (ConnectionKeepAlivePacket*)malloc(sizeof(ConnectionKeepAlivePacket));
+        ConnectionKeepAlivePacket connectionKeepAlivePacket;
 
-        packet->client_salt = server.m_clientSalt[i];
-        packet->challenge_salt = server.m_challengeSalt[i];
+        connectionKeepAlivePacket.client_salt = server.m_clientSalt[i];
+        connectionKeepAlivePacket.challenge_salt = server.m_challengeSalt[i];
 
-        ServerSendPacketToConnectedClient(server, i, packet, sizeof(ConnectionKeepAlivePacket), time);
+        uint8_t packet_buffer[1024];
+
+        Stream writeStream;
+        InitWriteStream(writeStream, packet_buffer, 1024);
+
+        SerializeConnectionKeepAlivePacket(writeStream, connectionKeepAlivePacket);
+
+        FlushBits(writeStream);
+
+        size_t bytesProcessed = GetBytesProcessed(writeStream);
+
+        ServerSendPacketToConnectedClient(server, i, packet_buffer, bytesProcessed, time);
     }
 }
 
@@ -309,6 +349,9 @@ struct Packet {
 
 bool ServerReceivePackets(Server& server, double time, Address address, Stream& stream, int client_packet_type)
 {
+    printf("Server recieved packet type ");
+    printPackType((PacketTypes)client_packet_type);
+
     switch (client_packet_type) {
 
     case PACKET_CONNECTION_REQUEST: {
@@ -317,35 +360,35 @@ bool ServerReceivePackets(Server& server, double time, Address address, Stream& 
 
         ConnectionRequestPacket packet;
         serialize_uint64(stream, packet.client_salt);
-       // serialize_bytes(stream, packet.data, 256);
+        // serialize_bytes(stream, packet.data, 256);
 
         ServerProcessConnectionRequest(server, packet, address, time);
         
     } break;
 
     case PACKET_CONNECTION_RESPONSE: {
-        ConnectionResponsePacket* packet2 = (ConnectionResponsePacket*)malloc(sizeof(ConnectionResponsePacket));
-        serialize_uint64(stream, packet2->client_salt);
-        serialize_uint64(stream, packet2->challenge_salt);
+        ConnectionResponsePacket ConnectionResponsePacket;
+        serialize_uint64(stream, ConnectionResponsePacket.client_salt);
+        serialize_uint64(stream, ConnectionResponsePacket.challenge_salt);
 
-        ServerProcessConnectionResponse(server, *(ConnectionResponsePacket*)packet2, address, time);
+        ServerProcessConnectionResponse(server, ConnectionResponsePacket, address, time);
     }  break;
 
     case PACKET_CONNECTION_KEEP_ALIVE: {
-        ConnectionKeepAlivePacket* packet3 = (ConnectionKeepAlivePacket*)malloc(sizeof(ConnectionKeepAlivePacket));
-        serialize_uint64(stream, packet3->client_salt);
-        serialize_uint64(stream, packet3->challenge_salt);
+        ConnectionKeepAlivePacket connectionKeepAlivePacket;
+        serialize_uint64(stream, connectionKeepAlivePacket.client_salt);
+        serialize_uint64(stream, connectionKeepAlivePacket.challenge_salt);
 
-        ServerProcessConnectionKeepAlive(server, *(ConnectionKeepAlivePacket*)packet3, address, time);
+        ServerProcessConnectionKeepAlive(server, connectionKeepAlivePacket, address, time);
     }
     break;
 
     case PACKET_CONNECTION_DISCONNECT: {
-        ConnectionDisconnectPacket* packet4 = (ConnectionDisconnectPacket*)malloc(sizeof(ConnectionDisconnectPacket));
-        serialize_uint64(stream, packet4->client_salt);
-        serialize_uint64(stream, packet4->challenge_salt);
+        ConnectionDisconnectPacket connectionDisconnectPacket;
+        serialize_uint64(stream, connectionDisconnectPacket.client_salt);
+        serialize_uint64(stream, connectionDisconnectPacket.challenge_salt);
 
-        ServerProcessConnectionDisconnect(server, *(ConnectionDisconnectPacket*)packet4, address, time);
+        ServerProcessConnectionDisconnect(server, connectionDisconnectPacket, address, time);
     }
     break;
 
@@ -422,11 +465,22 @@ void ServerConnectClient(Server& server, int clientIndex, const Address& address
     const char* addressString = AddressToString(address, buffer, sizeof(buffer));
     printf("client %d connected (client address = %s, client salt = %" PRIx64 ", challenge salt = %" PRIx64 ")\n", clientIndex, addressString, clientSalt, challengeSalt);
 
-    ConnectionKeepAlivePacket* connectionKeepAlivePacket = (ConnectionKeepAlivePacket*)malloc(sizeof(ConnectionKeepAlivePacket));
-    connectionKeepAlivePacket->client_salt = server.m_clientSalt[clientIndex];
-    connectionKeepAlivePacket->challenge_salt = server.m_challengeSalt[clientIndex];
+    ConnectionKeepAlivePacket connectionKeepAlivePacket;
+    connectionKeepAlivePacket.client_salt = server.m_clientSalt[clientIndex];
+    connectionKeepAlivePacket.challenge_salt = server.m_challengeSalt[clientIndex];
 
-    ServerSendPacketToConnectedClient(server, clientIndex, connectionKeepAlivePacket, sizeof(ConnectionKeepAlivePacket), time);
+    uint8_t packet_buffer[1024];
+
+    Stream writeStream;
+    InitWriteStream(writeStream, packet_buffer, 1024);
+
+    SerializeConnectionKeepAlivePacket(writeStream, connectionKeepAlivePacket);
+
+    FlushBits(writeStream);
+
+    size_t bytesProcessed = GetBytesProcessed(writeStream);
+
+    ServerSendPacketToConnectedClient(server, clientIndex, packet_buffer, bytesProcessed, time);
 }
 
 void ServerDisconnectClient(Server& server, int clientIndex, double time)
@@ -440,11 +494,22 @@ void ServerDisconnectClient(Server& server, int clientIndex, double time)
     const char* addressString = AddressToString(server.m_clientAddress[clientIndex], buffer, sizeof(buffer));
     printf("client %d disconnected: (client address = %s, client salt = %" PRIx64 ", challenge salt = %" PRIx64 ")\n", clientIndex, addressString, server.m_clientSalt[clientIndex], server.m_challengeSalt[clientIndex]);
 
-    ConnectionDisconnectPacket* packet = (ConnectionDisconnectPacket*)malloc(sizeof(ConnectionDisconnectPacket));
-    packet->client_salt = server.m_clientSalt[clientIndex];
-    packet->challenge_salt = server.m_challengeSalt[clientIndex];
+    ConnectionDisconnectPacket connectionDisconnectPacket;
+    connectionDisconnectPacket.client_salt = server.m_clientSalt[clientIndex];
+    connectionDisconnectPacket.challenge_salt = server.m_challengeSalt[clientIndex];
 
-    ServerSendPacketToConnectedClient(server, clientIndex, packet, sizeof(ConnectionDisconnectPacket), time);
+    uint8_t packet_buffer[1024];
+
+    Stream writeStream;
+    InitWriteStream(writeStream, packet_buffer, 1024);
+
+    SerializeConnectionDisconnectPacket(writeStream, connectionDisconnectPacket);
+
+    FlushBits(writeStream);
+
+    size_t bytesProcessed = GetBytesProcessed(writeStream);
+
+    ServerSendPacketToConnectedClient(server, clientIndex, packet_buffer, bytesProcessed, time);
 
     ServerResetClientState(server, clientIndex);
 
@@ -535,25 +600,47 @@ void ServerProcessConnectionRequest(Server& server, const ConnectionRequestPacke
     printf("processing connection request packet from: %s\n", addressString);
 
     if (server.m_numConnectedClients == MaxClients) {
-        printf("connection denied: server is full\n");
-        ConnectionDeniedPacket* connectionDeniedPacket = (ConnectionDeniedPacket*)malloc(sizeof(ConnectionDeniedPacket));
-        connectionDeniedPacket->client_salt = packet.client_salt;
-        connectionDeniedPacket->reason = CONNECTION_DENIED_SERVER_FULL;
 
-        SendPacket(*server.m_socket, address, connectionDeniedPacket, sizeof(ConnectionDeniedPacket));
+        printf("connection denied: server is full\n");
+        ConnectionDeniedPacket connectionDeniedPacket;
+        connectionDeniedPacket.client_salt = packet.client_salt;
+        connectionDeniedPacket.reason = CONNECTION_DENIED_SERVER_FULL;
+
+
+        uint8_t packet_buffer[1024];
+
+        Stream writeStream;
+        InitWriteStream(writeStream, packet_buffer, 1024);
+
+        SerializeConnectionDeniedPacket(writeStream, connectionDeniedPacket);
+
+        FlushBits(writeStream);
+
+        size_t bytesProcessed = GetBytesProcessed(writeStream);
+
+        SendPacket(*server.m_socket, address, packet_buffer, bytesProcessed);
         return;
     }
 
     if (ServerClientIsConnected(server, address, packet.client_salt)) {
+
         printf("connection denied: already connected\n");
-        ConnectionDeniedPacket* connectionDeniedPacket = (ConnectionDeniedPacket*)malloc(sizeof(ConnectionDeniedPacket));
-        connectionDeniedPacket->client_salt = packet.client_salt;
-        connectionDeniedPacket->reason = CONNECTION_DENIED_ALREADY_CONNECTED;
+        ConnectionDeniedPacket connectionDeniedPacket;
+        connectionDeniedPacket.client_salt = packet.client_salt;
+        connectionDeniedPacket.reason = CONNECTION_DENIED_ALREADY_CONNECTED;
 
-        PacketData packetdata;
+        uint8_t packet_buffer[1024];
 
+        Stream writeStream;
+        InitWriteStream(writeStream, packet_buffer, 1024);
 
-        SendPacket(*server.m_socket, address, connectionDeniedPacket, sizeof(ConnectionDeniedPacket));
+        SerializeConnectionDeniedPacket(writeStream, connectionDeniedPacket);
+
+        FlushBits(writeStream);
+
+        size_t bytesProcessed = GetBytesProcessed(writeStream);
+
+        SendPacket(*server.m_socket, address, packet_buffer, bytesProcessed);
 
         return;
     }
@@ -584,6 +671,18 @@ void ServerProcessConnectionRequest(Server& server, const ConnectionRequestPacke
 
         FlushBits(writeStream);
 
+
+        Stream readStrem;
+        InitReadStream(readStrem, buff, 1024);
+
+        ConnectionChallengePacket pack;
+
+        SerializeConnectionChallengePacket(readStrem, pack);
+
+        printf("pack.client_packet_type: %d\n", pack.client_server_type);
+
+
+
         size_t bytesProcessed = GetBytesProcessed(writeStream);
 
 
@@ -600,11 +699,22 @@ void ServerProcessConnectionRequest(Server& server, const ConnectionRequestPacke
         assert(existingClientIndex < MaxClients);
 
         if (server.m_clientData[existingClientIndex].lastPacketSendTime + ConnectionConfirmSendRate < time) {
-            ConnectionKeepAlivePacket* connectionKeepAlivePacket = (ConnectionKeepAlivePacket*)malloc(sizeof(ConnectionKeepAlivePacket));
-            connectionKeepAlivePacket->client_salt = server.m_clientSalt[existingClientIndex];
-            connectionKeepAlivePacket->challenge_salt = server.m_challengeSalt[existingClientIndex];
+            ConnectionKeepAlivePacket connectionKeepAlivePacket;
+            connectionKeepAlivePacket.client_salt = server.m_clientSalt[existingClientIndex];
+            connectionKeepAlivePacket.challenge_salt = server.m_challengeSalt[existingClientIndex];
 
-            ServerSendPacketToConnectedClient(server, existingClientIndex, connectionKeepAlivePacket, sizeof(ConnectionKeepAlivePacket), time);
+            uint8_t packet_buffer[1024];
+
+            Stream writeStream;
+            InitWriteStream(writeStream, packet_buffer, 1024);
+
+            SerializeConnectionKeepAlivePacket(writeStream, connectionKeepAlivePacket);
+
+            FlushBits(writeStream);
+
+            size_t bytesProcessed = GetBytesProcessed(writeStream);
+
+            ServerSendPacketToConnectedClient(server, existingClientIndex, packet_buffer, bytesProcessed, time);
         }
 
         return;
@@ -630,10 +740,23 @@ void ServerProcessConnectionRequest(Server& server, const ConnectionRequestPacke
     if (server.m_numConnectedClients == MaxClients) {
         if (entry->last_packet_send_time + ConnectionChallengeSendRate < time) {
             printf("connection denied: server is full\n");
-            ConnectionDeniedPacket* connectionDeniedPacket = (ConnectionDeniedPacket*)malloc(sizeof(ConnectionDeniedPacket));
-            connectionDeniedPacket->client_salt = packet.client_salt;
-            connectionDeniedPacket->reason = CONNECTION_DENIED_SERVER_FULL;
-            SendPacket(*server.m_socket, address, connectionDeniedPacket, sizeof(ConnectionDeniedPacket));
+            ConnectionDeniedPacket connectionDeniedPacket;
+            connectionDeniedPacket.client_salt = packet.client_salt;
+            connectionDeniedPacket.reason = CONNECTION_DENIED_SERVER_FULL;
+
+
+            uint8_t packet_buffer[1024];
+
+            Stream writeStream;
+            InitWriteStream(writeStream, packet_buffer, 1024);
+
+            SerializeConnectionDeniedPacket(writeStream, connectionDeniedPacket);
+
+            FlushBits(writeStream);
+
+            size_t bytesProcessed = GetBytesProcessed(writeStream);
+
+            SendPacket(*server.m_socket, address, packet_buffer, bytesProcessed);
             entry->last_packet_send_time = time;
         }
         return;
@@ -768,10 +891,22 @@ void ClientDisconnect(Client& client, double time)
 {
     if (client.m_clientState == CLIENT_STATE_CONNECTED) {
         printf("client-side disconnect: (client salt = %" PRIx64 ", challenge salt = %" PRIx64 ")\n", client.m_clientSalt, client.m_challengeSalt);
-        ConnectionDisconnectPacket* packet = (ConnectionDisconnectPacket*)malloc(sizeof(ConnectionDisconnectPacket));
-        packet->client_salt = client.m_clientSalt;
-        packet->challenge_salt = client.m_challengeSalt;
-        ClientSendPacketToServer(client, packet, sizeof(ConnectionDisconnectPacket), time);
+        ConnectionDisconnectPacket connectionDisconnectPacket;
+        connectionDisconnectPacket.client_salt = client.m_clientSalt;
+        connectionDisconnectPacket.challenge_salt = client.m_challengeSalt;
+
+        uint8_t packet_buffer[1024];
+
+        Stream writeStream;
+        InitWriteStream(writeStream, packet_buffer, 1024);
+
+        SerializeConnectionDisconnectPacket(writeStream, connectionDisconnectPacket);
+
+        FlushBits(writeStream);
+
+        size_t bytesProcessed = GetBytesProcessed(writeStream);
+
+        ClientSendPacketToServer(client, packet_buffer, bytesProcessed, time);
     }
 
     ClientResetConnectionData(client);
@@ -816,22 +951,47 @@ void ClientSendPackets(Client& client, double time)
         const char* addressString = AddressToString(client.m_serverAddress, buffer, sizeof(buffer));
         printf("client sending challenge response to server: %s\n", addressString);
 
-        ConnectionResponsePacket* packet = (ConnectionResponsePacket*)malloc(sizeof(ConnectionResponsePacket));
-        packet->client_salt = client.m_clientSalt;
-        packet->challenge_salt = client.m_challengeSalt;
+        
 
-        ClientSendPacketToServer(client, packet, sizeof(ConnectionResponsePacket), time);
+        ConnectionResponsePacket packet;
+        packet.client_salt = client.m_clientSalt;
+        packet.challenge_salt = client.m_challengeSalt;
+
+        uint8_t packet_buffer[1024];
+
+        Stream writeStream;
+        InitWriteStream(writeStream, packet_buffer, 1024);
+
+        SerializeConnectionResponsePacket(writeStream, packet);
+
+        FlushBits(writeStream);
+
+        size_t bytesProcessed = GetBytesProcessed(writeStream);
+
+        ClientSendPacketToServer(client, packet_buffer, bytesProcessed, time);
     } break;
 
     case CLIENT_STATE_CONNECTED: {
         if (client.m_lastPacketSendTime + ConnectionKeepAliveSendRate > time)
             return;
 
-        ConnectionKeepAlivePacket* packet = (ConnectionKeepAlivePacket*)malloc(sizeof(ConnectionKeepAlivePacket));
-        packet->client_salt = client.m_clientSalt;
-        packet->challenge_salt = client.m_challengeSalt;
+        uint8_t packet_buffer[1024];
 
-        ClientSendPacketToServer(client, packet, sizeof(ConnectionKeepAlivePacket), time);
+        ConnectionKeepAlivePacket packet;
+        packet.client_salt = client.m_clientSalt;
+        packet.challenge_salt = client.m_challengeSalt;
+
+        Stream writeStream;
+        InitWriteStream(writeStream, packet_buffer, 1024);
+
+        SerializeConnectionKeepAlivePacket(writeStream, packet);
+
+        FlushBits(writeStream);
+
+        size_t bytesProcessed = GetBytesProcessed(writeStream);
+
+
+        ClientSendPacketToServer(client, packet_buffer, bytesProcessed, time);
     } break;
 
     default:
@@ -841,45 +1001,46 @@ void ClientSendPackets(Client& client, double time)
 
 bool ClientReceivePackets(Client& client, double time, Address address, Stream& stream, int client_packet_type)
 {
-    printf("Client recieved packet type %d\n", client_packet_type);
+    printf("Client recieved packet type ");
+    printPackType((PacketTypes)client_packet_type);
 
     switch (client_packet_type) {
     case PACKET_CONNECTION_DENIED: {
-        ConnectionDeniedPacket* packet = (ConnectionDeniedPacket*)malloc(sizeof(ConnectionDeniedPacket));
-        serialize_uint64(stream, packet->client_salt);
-        serialize_enum(stream, packet->reason, ConnectionDeniedReason, CONNECTION_DENIED_NUM_VALUES);
+        ConnectionDeniedPacket connectionDeniedPacket;
+        serialize_uint64(stream, connectionDeniedPacket.client_salt);
+        serialize_enum(stream, connectionDeniedPacket.reason, ConnectionDeniedReason, CONNECTION_DENIED_NUM_VALUES);
 
-        ClientProcessConnectionDenied(client, *(ConnectionDeniedPacket*)packet, address, time);
+        ClientProcessConnectionDenied(client, connectionDeniedPacket, address, time);
     }
 
     break;
 
     case PACKET_CONNECTION_CHALLENGE: {
-        ConnectionChallengePacket* packet2 = (ConnectionChallengePacket*)malloc(sizeof(ConnectionChallengePacket));
-        serialize_uint64(stream, packet2->client_salt);
-        serialize_uint64(stream, packet2->challenge_salt);
+        ConnectionChallengePacket connectionChallengePacket;
+        serialize_uint64(stream, connectionChallengePacket.client_salt);
+        serialize_uint64(stream, connectionChallengePacket.challenge_salt);
 
-        ClientProcessConnectionChallenge(client, *(ConnectionChallengePacket*)packet2, address, time);
+        ClientProcessConnectionChallenge(client, connectionChallengePacket, address, time);
     }
 
     break;
 
     case PACKET_CONNECTION_KEEP_ALIVE: {
-        ConnectionKeepAlivePacket* packet3 = (ConnectionKeepAlivePacket*)malloc(sizeof(ConnectionKeepAlivePacket));
-        serialize_uint64(stream, packet3->client_salt);
-        serialize_uint64(stream, packet3->challenge_salt);
+        ConnectionKeepAlivePacket connectionKeepAlivePacket;
+        serialize_uint64(stream, connectionKeepAlivePacket.client_salt);
+        serialize_uint64(stream, connectionKeepAlivePacket.challenge_salt);
 
-        ClientProcessConnectionKeepAlive(client, *(ConnectionKeepAlivePacket*)packet3, address, time);
+        ClientProcessConnectionKeepAlive(client, connectionKeepAlivePacket, address, time);
     }
 
     break;
 
     case PACKET_CONNECTION_DISCONNECT: {
-        ConnectionDisconnectPacket* packet4 = (ConnectionDisconnectPacket*)malloc(sizeof(ConnectionDisconnectPacket));
-        serialize_uint64(stream, packet4->client_salt);
-        serialize_uint64(stream, packet4->challenge_salt);
+        ConnectionDisconnectPacket connectionDisconnectPacket;
+        serialize_uint64(stream, connectionDisconnectPacket.client_salt);
+        serialize_uint64(stream, connectionDisconnectPacket.challenge_salt);
 
-        ClientProcessConnectionDisconnect(client, *(ConnectionDisconnectPacket*)packet4, address, time);
+        ClientProcessConnectionDisconnect(client, connectionDisconnectPacket, address, time);
     }
 
     break;

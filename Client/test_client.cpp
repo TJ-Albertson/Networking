@@ -54,7 +54,7 @@ int main()
 
             
 
-            // printf("bytes_read: %d\n", bytes_read);
+            printf("bytes_read: %d\n", bytes_read);
 
             Stream readStream;
             InitReadStream(readStream, buffer, bytes_read);
@@ -77,7 +77,9 @@ int main()
 
 
             uint32_t packet_type = 0;
-            serialize_bits(readStream, packet_type, 3);
+            serialize_int(readStream, packet_type, 0, 3);
+
+            
 
             if (packet_type == 3) {
 

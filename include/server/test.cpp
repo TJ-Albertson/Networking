@@ -89,7 +89,6 @@ int main()
             uint32_t packet_type = 0;
             serialize_int(readStream, packet_type, 0, 3);
 
-            printf("packet_type: %d\n", packet_type);
 
             if (packet_type == 3) {
 
