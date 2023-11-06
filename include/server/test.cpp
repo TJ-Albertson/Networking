@@ -85,20 +85,15 @@ int main()
                 continue;
             }
 
-            ConnectionRequestPacket pk;
-
-            serialize_uint64(readStream, pk.client_salt);
-
-            printf("pk.client_salt: %llu\n", pk.client_salt);
-
 
             uint32_t packet_type = 0;
-            serialize_bits(readStream, packet_type, 2);
+            serialize_int(readStream, packet_type, 0, 3);
+
+            printf("packet_type: %d\n", packet_type);
 
             if (packet_type == 3) {
 
-                printf("packet type 3\n");
-
+               
                 uint32_t client_server_type = 0;
                 serialize_int(readStream, client_server_type, 0, CLIENT_SERVER_NUM_PACKETS);
 

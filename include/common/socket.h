@@ -100,8 +100,6 @@ const int MAX_PACKET_SIZE = 256;
 const int HEADER_SIZE = 4;
 const int PROTOCOL_ID = 57;
 
-
-
 bool SendPacket(SocketHandle handle, const Address destination, void* data, int size)
 {
     uint8_t buffer[2000];

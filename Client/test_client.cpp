@@ -79,7 +79,7 @@ int main()
 
 
             uint32_t packet_type = 0;
-            serialize_bits(readStream, packet_type, 2);
+            serialize_bits(readStream, packet_type, 3);
 
             if (packet_type == 3) {
 

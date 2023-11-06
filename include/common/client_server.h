@@ -55,31 +55,26 @@ struct ConnectionRequestPacket {
 
     uint64_t client_salt;
     uint8_t data[256];
-
-    ConnectionRequestPacket()
-    {
-        client_salt = 0;
-        memset(data, 0, sizeof(data));
-    }
-
-    bool Serialize(Stream& stream)
-    {
-        serialize_int(stream, packet_type, 0, 3);
-        serialize_int(stream, client_server_type, 0, CLIENT_SERVER_NUM_PACKETS);
-
-        serialize_uint64(stream, client_salt);
-        if (stream.type == READ && GetBitsRemaining(stream) < 256 * 8)
-            return false;
-        serialize_bytes(stream, data, 256);
-        return true;
-    }
 };
+
+bool SerializeConnectionRequestPacket(Stream& stream, ConnectionRequestPacket& packet)
+{
+    serialize_int(stream, packet.packet_type, 0, 3);
+    serialize_int(stream, packet.client_server_type, 0, CLIENT_SERVER_NUM_PACKETS);
+
+    serialize_uint64(stream, packet.client_salt);
+    if (stream.type == READ && GetBitsRemaining(stream) < 256 * 8)
+        return false;
+    serialize_bytes(stream, packet.data, 256);
+    return true;
+}
 
 enum ConnectionDeniedReason {
     CONNECTION_DENIED_SERVER_FULL,
     CONNECTION_DENIED_ALREADY_CONNECTED,
     CONNECTION_DENIED_NUM_VALUES
 };
+
 
 struct ConnectionDeniedPacket {
 
@@ -88,23 +83,18 @@ struct ConnectionDeniedPacket {
 
     uint64_t client_salt;
     ConnectionDeniedReason reason;
-
-    ConnectionDeniedPacket()
-    {
-        client_salt = 0;
-        reason = CONNECTION_DENIED_NUM_VALUES;
-    }
-
-    bool Serialize(Stream& stream)
-    {
-        serialize_int(stream, packet_type, 0, 3);
-        serialize_int(stream, client_server_type, 0, CLIENT_SERVER_NUM_PACKETS);
-
-        serialize_uint64(stream, client_salt);
-        serialize_enum(stream, reason, ConnectionDeniedReason, CONNECTION_DENIED_NUM_VALUES);
-        return true;
-    }
 };
+
+bool SerializeConnectionDeniedPacket(Stream& stream, ConnectionDeniedPacket& packet)
+{
+    serialize_int(stream, packet.packet_type, 0, 3);
+    serialize_int(stream, packet.client_server_type, 0, CLIENT_SERVER_NUM_PACKETS);
+
+    serialize_uint64(stream, packet.client_salt);
+    serialize_enum(stream, packet.reason, ConnectionDeniedReason, CONNECTION_DENIED_NUM_VALUES);
+    return true;
+}
+
 
 struct ConnectionChallengePacket {
 
@@ -113,23 +103,17 @@ struct ConnectionChallengePacket {
 
     uint64_t client_salt;
     uint64_t challenge_salt;
-
-    ConnectionChallengePacket()
-    {
-        client_salt = 0;
-        challenge_salt = 0;
-    }
-
-    bool Serialize(Stream& stream)
-    {
-        serialize_int(stream, packet_type, 0, 3);
-        serialize_int(stream, client_server_type, 0, CLIENT_SERVER_NUM_PACKETS);
-
-        serialize_uint64(stream, client_salt);
-        serialize_uint64(stream, challenge_salt);
-        return true;
-    }
 };
+
+bool SerializeConnectionChallengePacket(Stream& stream, ConnectionChallengePacket& packet)
+{
+    serialize_int(stream, packet.packet_type, 0, 3);
+    serialize_int(stream, packet.client_server_type, 0, CLIENT_SERVER_NUM_PACKETS);
+
+    serialize_uint64(stream, packet.client_salt);
+    serialize_uint64(stream, packet.challenge_salt);
+    return true;
+}
 
 struct ConnectionResponsePacket {
 
@@ -138,24 +122,17 @@ struct ConnectionResponsePacket {
 
     uint64_t client_salt;
     uint64_t challenge_salt;
-
-    ConnectionResponsePacket()
-    {
-        client_salt = 0;
-        challenge_salt = 0;
-    }
-
-    bool Serialize(Stream& stream)
-    {
-        serialize_int(stream, packet_type, 0, 3);
-        serialize_int(stream, client_server_type, 0, CLIENT_SERVER_NUM_PACKETS);
-
-        serialize_uint64(stream, client_salt);
-        serialize_uint64(stream, challenge_salt);
-        return true;
-    }
-
 };
+
+bool SerializeConnectionResponsePacket(Stream& stream, ConnectionResponsePacket& packet)
+{
+    serialize_int(stream, packet.packet_type, 0, 3);
+    serialize_int(stream, packet.client_server_type, 0, CLIENT_SERVER_NUM_PACKETS);
+
+    serialize_uint64(stream, packet.client_salt);
+    serialize_uint64(stream, packet.challenge_salt);
+    return true;
+}
 
 struct ConnectionKeepAlivePacket {
 
@@ -164,23 +141,20 @@ struct ConnectionKeepAlivePacket {
 
     uint64_t client_salt;
     uint64_t challenge_salt;
-
-    ConnectionKeepAlivePacket()
-    {
-        client_salt = 0;
-        challenge_salt = 0;
-    }
-
-    bool Serialize(Stream& stream)
-    {
-        serialize_int(stream, packet_type, 0, 3);
-        serialize_int(stream, client_server_type, 0, CLIENT_SERVER_NUM_PACKETS);
-
-        serialize_uint64(stream, client_salt);
-        serialize_uint64(stream, challenge_salt);
-        return true;
-    }
 };
+
+
+bool SerializeConnectionKeepAlivePacket(Stream& stream, ConnectionKeepAlivePacket& packet)
+{
+    serialize_int(stream, packet.packet_type, 0, 3);
+    serialize_int(stream, packet.client_server_type, 0, CLIENT_SERVER_NUM_PACKETS);
+
+    serialize_uint64(stream, packet.client_salt);
+    serialize_uint64(stream, packet.challenge_salt);
+    return true;
+}
+
+
 
 struct ConnectionDisconnectPacket {
 
@@ -189,23 +163,24 @@ struct ConnectionDisconnectPacket {
 
     uint64_t client_salt;
     uint64_t challenge_salt;
-
-    ConnectionDisconnectPacket()
-    {
-        client_salt = 0;
-        challenge_salt = 0;
-    }
-
-    bool Serialize(Stream& stream)
-    {
-        serialize_int(stream, packet_type, 0, 3);
-        serialize_int(stream, client_server_type, 0, CLIENT_SERVER_NUM_PACKETS);
-
-        serialize_uint64(stream, client_salt);
-        serialize_uint64(stream, challenge_salt);
-        return true;
-    }
 };
+
+bool SerializeConnectionDisconnectPacket(Stream& stream, ConnectionDisconnectPacket& packet)
+{
+    serialize_int(stream, packet.packet_type, 0, 3);
+    serialize_int(stream, packet.client_server_type, 0, CLIENT_SERVER_NUM_PACKETS);
+
+    serialize_uint64(stream, packet.client_salt);
+    serialize_uint64(stream, packet.challenge_salt);
+    return true;
+}
+
+
+
+
+
+
+
 
 struct ServerChallengeEntry {
     uint64_t client_salt; // random number generated by client and sent to server in connection request
@@ -313,7 +288,7 @@ void ServerSendPacketsAll(Server& server, double time)
     for (int i = 0; i < MaxClients; ++i) {
         if (!server.m_clientConnected[i])
             continue;
-
+         
         if (server.m_clientData[i].lastPacketSendTime + ConnectionKeepAliveSendRate > time)
             return;
 
@@ -337,13 +312,16 @@ bool ServerReceivePackets(Server& server, double time, Address address, Stream& 
     switch (client_packet_type) {
 
     case PACKET_CONNECTION_REQUEST: {
-        ConnectionRequestPacket* packet = (ConnectionRequestPacket*)malloc(sizeof(ConnectionRequestPacket));
-        serialize_uint64(stream, packet->client_salt);
-        serialize_bytes(stream, packet->data, 256);
 
-        ServerProcessConnectionRequest(server, *(ConnectionRequestPacket*)packet, address, time);
-    }
-    break;
+        printf("PACKET_CONNECTION_REQUEST\n");
+
+        ConnectionRequestPacket packet;
+        serialize_uint64(stream, packet.client_salt);
+       // serialize_bytes(stream, packet.data, 256);
+
+        ServerProcessConnectionRequest(server, packet, address, time);
+        
+    } break;
 
     case PACKET_CONNECTION_RESPONSE: {
         ConnectionResponsePacket* packet2 = (ConnectionResponsePacket*)malloc(sizeof(ConnectionResponsePacket));
@@ -351,8 +329,7 @@ bool ServerReceivePackets(Server& server, double time, Address address, Stream& 
         serialize_uint64(stream, packet2->challenge_salt);
 
         ServerProcessConnectionResponse(server, *(ConnectionResponsePacket*)packet2, address, time);
-    } 
-    break;
+    }  break;
 
     case PACKET_CONNECTION_KEEP_ALIVE: {
         ConnectionKeepAlivePacket* packet3 = (ConnectionKeepAlivePacket*)malloc(sizeof(ConnectionKeepAlivePacket));
@@ -591,10 +568,26 @@ void ServerProcessConnectionRequest(Server& server, const ConnectionRequestPacke
 
     if (entry->last_packet_send_time + ChallengeSendRate < time) {
         printf("sending connection challenge to %s (challenge salt = %" PRIx64 ")\n", addressString, entry->challenge_salt);
-        ConnectionChallengePacket* connectionChallengePacket = (ConnectionChallengePacket*)malloc(sizeof(ConnectionChallengePacket));
-        connectionChallengePacket->client_salt = packet.client_salt;
-        connectionChallengePacket->challenge_salt = entry->challenge_salt;
-        SendPacket(server.m_socket->m_socket, address, connectionChallengePacket, sizeof(ConnectionChallengePacket));
+
+        uint8_t buff[1024];
+
+        ConnectionChallengePacket connectionChallengePacket;
+
+        connectionChallengePacket.client_salt = packet.client_salt;
+        connectionChallengePacket.challenge_salt = entry->challenge_salt;
+
+
+        Stream writeStream;
+        InitWriteStream(writeStream, buff, 1024);
+
+        SerializeConnectionChallengePacket(writeStream, connectionChallengePacket);
+
+        FlushBits(writeStream);
+
+        size_t bytesProcessed = GetBytesProcessed(writeStream);
+
+
+        SendPacket(server.m_socket->m_socket, address, buff, bytesProcessed);
         entry->last_packet_send_time = time;
     }
 }
@@ -795,13 +788,24 @@ void ClientSendPackets(Client& client, double time)
         const char* addressString = AddressToString(client.m_serverAddress, buffer, sizeof(buffer));
         printf("client sending connection request to server: %s\n", addressString);
 
-        ConnectionRequestPacket* packet = (ConnectionRequestPacket*)malloc(sizeof(ConnectionRequestPacket));
-        packet->client_salt = client.m_clientSalt;
 
+        uint8_t buff[1024];
+
+        ConnectionRequestPacket packet;
+        packet.client_salt = client.m_clientSalt;
+
+        Stream writeStream;
+        InitWriteStream(writeStream, buff, 1024);
+
+        SerializeConnectionRequestPacket(writeStream, packet);
+
+        FlushBits(writeStream);
+
+        size_t bytesProcessed = GetBytesProcessed(writeStream);
 
         printf("pk.client_salt: %llu\n", client.m_clientSalt);
 
-        ClientSendPacketToServer(client, packet, sizeof(ConnectionRequestPacket), time);
+        ClientSendPacketToServer(client, buff, bytesProcessed, time);
     } break;
 
     case CLIENT_STATE_SENDING_CHALLENGE_RESPONSE: {
@@ -837,6 +841,7 @@ void ClientSendPackets(Client& client, double time)
 
 bool ClientReceivePackets(Client& client, double time, Address address, Stream& stream, int client_packet_type)
 {
+    printf("Client recieved packet type %d\n", client_packet_type);
 
     switch (client_packet_type) {
     case PACKET_CONNECTION_DENIED: {

@@ -21,7 +21,7 @@
     <ClCompile Include="client.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="test_main.cpp">
+    <ClCompile Include="test_client.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="test_main_two.cpp">
