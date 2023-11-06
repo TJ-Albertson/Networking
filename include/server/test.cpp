@@ -16,9 +16,9 @@ int main()
 
     const int port = 30001;
 
-    SocketHandle socket;
+    SocketHandle socketHandle;
 
-    if (!CreateSocket(socket, port)) {
+    if (!CreateSocket(socketHandle, port)) {
         printf("[SERVER] Failed to create socket!\n");
         return false;
     }
@@ -35,12 +35,12 @@ int main()
     PacketData packets[PacketBufferSize];
     uint8_t buffer[MaxPacketSize];
 
-    Socket sock;
-    sock.m_port = port;
-    sock.m_socket = socket;
+    Socket socket;
+    socket.m_port = port;
+    socket.m_socket = socketHandle;
 
     Server server;
-    CreateServer(server, sock);
+    CreateServer(server, socket);
 
     while (1) {
 
@@ -52,7 +52,7 @@ int main()
 
         Address sender;
 
-        int bytes_read = RecievePackets(socket, sender,
+        int bytes_read = ReceivePackets(socket, sender,
             buffer,
             sizeof(buffer));
 
@@ -60,7 +60,7 @@ int main()
             break;
 
         // Unique message recieve
-        if (sender.ipv4 <= 0 || sender.ipv4 != -858993460) {
+        if (sender.m_address_ipv4 <= 0 || sender.m_address_ipv4 != -858993460) {
 
             printf("bytes_read: %d\n", bytes_read);
 

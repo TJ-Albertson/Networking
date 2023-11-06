@@ -392,7 +392,7 @@ int ServerFindFreeClientIndex(Server& server)
 int ServerFindExistingClientIndex(Server& server, const Address& address, uint64_t clientSalt, uint64_t challengeSalt)
 {
     for (int i = 0; i < MaxClients; ++i) {
-        if (server.m_clientConnected[i] && server.m_clientAddress[i].ipv4 == address.ipv4 && server.m_clientSalt[i] == clientSalt && server.m_challengeSalt[i] == challengeSalt)
+        if (server.m_clientConnected[i] && server.m_clientAddress[i].m_address_ipv4 == address.m_address_ipv4 && server.m_clientSalt[i] == clientSalt && server.m_challengeSalt[i] == challengeSalt)
             return i;
     }
     return -1;
@@ -456,7 +456,7 @@ bool ServerClientIsConnected(Server& server, const Address& address, uint64_t cl
     for (int i = 0; i < MaxClients; ++i) {
         if (!server.m_clientConnected[i])
             continue;
-        if (server.m_clientAddress[i].ipv4 == address.ipv4 && server.m_clientSalt[i] == clientSalt)
+        if (server.m_clientAddress[i].m_address_ipv4 == address.m_address_ipv4 && server.m_clientSalt[i] == clientSalt)
             return true;
     }
     return false;
@@ -472,7 +472,7 @@ ServerChallengeEntry* ServerFindChallenge(Server& server, const Address& address
     printf("challenge hash key = %" PRIx64 "\n", key);
     printf("challenge hash index = %d\n", index);
 
-    if (server.m_challengeHash.exists[index] && server.m_challengeHash.entries[index].client_salt == clientSalt && server.m_challengeHash.entries[index].address.ipv4 == address.ipv4 && server.m_challengeHash.entries[index].create_time + ChallengeTimeOut >= time) {
+    if (server.m_challengeHash.exists[index] && server.m_challengeHash.entries[index].client_salt == clientSalt && server.m_challengeHash.entries[index].address.m_address_ipv4 == address.m_address_ipv4 && server.m_challengeHash.entries[index].create_time + ChallengeTimeOut >= time) {
         printf("found challenge entry at index %d\n", index);
 
         return &server.m_challengeHash.entries[index];
@@ -507,7 +507,7 @@ ServerChallengeEntry* ServerFindOrInsertChallenge(Server& server, const Address&
         return entry;
     }
 
-    if (server.m_challengeHash.exists[index] && server.m_challengeHash.entries[index].client_salt == clientSalt && server.m_challengeHash.entries[index].address.ipv4 == address.ipv4) {
+    if (server.m_challengeHash.exists[index] && server.m_challengeHash.entries[index].client_salt == clientSalt && server.m_challengeHash.entries[index].address.m_address_ipv4 == address.m_address_ipv4) {
         printf("found existing challenge hash entry at index %d\n", index);
 
         return &server.m_challengeHash.entries[index];
@@ -525,7 +525,7 @@ ServerChallengeEntry* ServerFindOrInsertChallenge(Server& server, const Address&
     assert(server.m_clientConnected[clientIndex]);
     server.m_clientData[clientIndex].lastPacketSendTime = time;
 
-    SendPacket(server.m_socket->m_socket, server.m_clientAddress[clientIndex], packet, packetSize);
+    SendPacket(*server.m_socket, server.m_clientAddress[clientIndex], packet, packetSize);
 }
 
 void ServerProcessConnectionRequest(Server& server, const ConnectionRequestPacket& packet, const Address& address, double time)
@@ -540,7 +540,7 @@ void ServerProcessConnectionRequest(Server& server, const ConnectionRequestPacke
         connectionDeniedPacket->client_salt = packet.client_salt;
         connectionDeniedPacket->reason = CONNECTION_DENIED_SERVER_FULL;
 
-        SendPacket(server.m_socket->m_socket, address, connectionDeniedPacket, sizeof(ConnectionDeniedPacket));
+        SendPacket(*server.m_socket, address, connectionDeniedPacket, sizeof(ConnectionDeniedPacket));
         return;
     }
 
@@ -553,7 +553,7 @@ void ServerProcessConnectionRequest(Server& server, const ConnectionRequestPacke
         PacketData packetdata;
 
 
-        SendPacket(server.m_socket->m_socket, address, connectionDeniedPacket, sizeof(ConnectionDeniedPacket));
+        SendPacket(*server.m_socket, address, connectionDeniedPacket, sizeof(ConnectionDeniedPacket));
 
         return;
     }
@@ -563,7 +563,7 @@ void ServerProcessConnectionRequest(Server& server, const ConnectionRequestPacke
         return;
 
     assert(entry);
-    assert(entry->address.ipv4 == address.ipv4);
+    assert(entry->address.m_address_ipv4 == address.m_address_ipv4);
     assert(entry->client_salt == packet.client_salt);
 
     if (entry->last_packet_send_time + ChallengeSendRate < time) {
@@ -587,7 +587,7 @@ void ServerProcessConnectionRequest(Server& server, const ConnectionRequestPacke
         size_t bytesProcessed = GetBytesProcessed(writeStream);
 
 
-        SendPacket(server.m_socket->m_socket, address, buff, bytesProcessed);
+        SendPacket(*server.m_socket, address, buff, bytesProcessed);
         entry->last_packet_send_time = time;
     }
 }
@@ -619,7 +619,7 @@ void ServerProcessConnectionRequest(Server& server, const ConnectionRequestPacke
         return;
 
     assert(entry);
-    assert(entry->address.ipv4 == address.ipv4);
+    assert(entry->address.m_address_ipv4 == address.m_address_ipv4);
     assert(entry->client_salt == packet.client_salt);
 
     if (entry->challenge_salt != packet.challenge_salt) {
@@ -633,7 +633,7 @@ void ServerProcessConnectionRequest(Server& server, const ConnectionRequestPacke
             ConnectionDeniedPacket* connectionDeniedPacket = (ConnectionDeniedPacket*)malloc(sizeof(ConnectionDeniedPacket));
             connectionDeniedPacket->client_salt = packet.client_salt;
             connectionDeniedPacket->reason = CONNECTION_DENIED_SERVER_FULL;
-            SendPacket(server.m_socket->m_socket, address, connectionDeniedPacket, sizeof(ConnectionDeniedPacket));
+            SendPacket(*server.m_socket, address, connectionDeniedPacket, sizeof(ConnectionDeniedPacket));
             entry->last_packet_send_time = time;
         }
         return;
@@ -943,7 +943,7 @@ void ClientSendPacketToServer(Client& client, void* packet, int packetSize, doub
     assert(client.m_clientState != CLIENT_STATE_DISCONNECTED);
     //assert(client.m_serverAddress.IsValid());
 
-    SendPacket(client.m_socket->m_socket, client.m_serverAddress, packet, packetSize);
+    SendPacket(*client.m_socket, client.m_serverAddress, packet, packetSize);
 
     client.m_lastPacketSendTime = time;
 }
@@ -956,7 +956,7 @@ void ClientProcessConnectionDenied(Client& client, const ConnectionDeniedPacket&
     if (packet.client_salt != client.m_clientSalt)
         return;
 
-    if (address.ipv4 != client.m_serverAddress.ipv4)
+    if (address.m_address_ipv4 != client.m_serverAddress.m_address_ipv4)
         return;
 
     char buffer[256];
@@ -978,7 +978,7 @@ void ClientProcessConnectionChallenge(Client& client, const ConnectionChallengeP
     if (packet.client_salt != client.m_clientSalt)
         return;
 
-    if (address.ipv4 != client.m_serverAddress.ipv4)
+    if (address.m_address_ipv4 != client.m_serverAddress.m_address_ipv4)
         return;
 
     char buffer[256];
@@ -1003,7 +1003,7 @@ void ClientProcessConnectionKeepAlive(Client& client, const ConnectionKeepAliveP
     if (packet.challenge_salt != client.m_challengeSalt)
         return;
 
-    if (address.ipv4 != client.m_serverAddress.ipv4)
+    if (address.m_address_ipv4 != client.m_serverAddress.m_address_ipv4)
         return;
 
     if (client.m_clientState == CLIENT_STATE_SENDING_CHALLENGE_RESPONSE) {
@@ -1027,7 +1027,7 @@ void ClientProcessConnectionDisconnect(Client& client, const ConnectionDisconnec
     if (packet.challenge_salt != client.m_challengeSalt)
         return;
 
-    if (address.ipv4 != client.m_serverAddress.ipv4)
+    if (address.m_address_ipv4 != client.m_serverAddress.m_address_ipv4)
         return;
 
     ClientDisconnect(client, time);

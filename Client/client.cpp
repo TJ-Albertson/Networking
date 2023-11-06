@@ -6,9 +6,9 @@ int main()
 
     const int port = 30000;
 
-    SocketHandle socket;
+    SocketHandle socketHandle;
 
-    if (!CreateSocket(socket, port)) {
+    if (!CreateSocket(socketHandle, port)) {
         printf("failed to create socket!\n");
         return false;
     }
@@ -22,13 +22,13 @@ int main()
 
     char input[100];
 
-    Socket sock;
-    sock.m_port = port;
-    sock.m_socket = socket;
+    Socket socket;
+    socket.m_port = port;
+    socket.m_socket = socketHandle;
 
 
     Client client;
-    CreateClient(client, sock);
+    CreateClient(client, socket);
 
     while (1) { // Infinite loop
         printf("Enter a string (press Enter to send or 'q' to quit): ");
@@ -116,6 +116,6 @@ int main()
         SendPacket(socket, address, (void*)input, sizeof(input));
     }
 
-    DestroySocket(socket);
+    DestroySocket(socket.m_socket);
     ShutdownSockets();
 }

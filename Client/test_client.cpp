@@ -7,32 +7,32 @@ int main()
 
     const int port = 30000;
 
-    SocketHandle socket;
+    SocketHandle socketHandle;
 
-    if (!CreateSocket(socket, port)) {
+    if (!CreateSocket(socketHandle, port)) {
         printf("failed to create socket!\n");
         return false;
     }
 
-    Address address;
+    Address serverAddress;
 
-    CreateAddress(address, 127, 0, 0, 1, 30001);
+    CreateAddress(serverAddress, 127, 0, 0, 1, 30001);
 
     char input[100];
 
-    Socket sock;
-    sock.m_port = port;
-    sock.m_socket = socket;
+    Socket socket;
+    socket.m_port = port;
+    socket.m_socket = socketHandle;
 
     Client client;
-    CreateClient(client, sock);
+    CreateClient(client, socket);
 
     time_t currentTime;
     time(&currentTime);
 
     uint8_t buffer[MaxPacketSize];
 
-    ClientConnect(client, address, currentTime);
+    ClientConnect(client, serverAddress, currentTime);
 
     while (1) {
 
@@ -42,7 +42,7 @@ int main()
 
         Address sender;
 
-        int bytes_read = RecievePackets(socket, sender,
+        int bytes_read = ReceivePackets(socket, sender,
             buffer,
             sizeof(buffer));
 
@@ -50,11 +50,11 @@ int main()
             break;
 
         // Unique message recieve
-        if (sender.ipv4 <= 0 || sender.ipv4 != -858993460) {
+        if (sender.m_address_ipv4 <= 0 || sender.m_address_ipv4 != -858993460) {
 
             
 
-           // printf("bytes_read: %d\n", bytes_read);
+            // printf("bytes_read: %d\n", bytes_read);
 
             Stream readStream;
             InitReadStream(readStream, buffer, bytes_read);
@@ -75,8 +75,6 @@ int main()
                 continue;
             }
 
-           
-
 
             uint32_t packet_type = 0;
             serialize_bits(readStream, packet_type, 3);
@@ -95,6 +93,6 @@ int main()
         }
     }
 
-    DestroySocket(socket);
+    DestroySocket(socket.m_socket);
     ShutdownSockets();
 }

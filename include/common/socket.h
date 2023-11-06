@@ -81,9 +81,10 @@ bool CreateSocket(SocketHandle& handle, unsigned short port)
         printf("failed to set non-blocking\n");
         return false;
     }
+
 #endif
 
-return true;
+    return true;
 }
 
 void DestroySocket(SocketHandle& socket)
@@ -95,31 +96,34 @@ void DestroySocket(SocketHandle& socket)
 #endif
 }
 
-
 const int MAX_PACKET_SIZE = 256;
 const int HEADER_SIZE = 4;
-const int PROTOCOL_ID = 57;
 
-bool SendPacket(SocketHandle handle, const Address destination, void* data, int size)
+// SEND packets on socket TO address
+bool SendPacket(Socket socket, const Address destination, const void* packetData, int size)
 {
     uint8_t buffer[2000];
+
+    sockaddr_in socket_address;
+    memset(&socket_address, 0, sizeof(socket_address));
+    socket_address.sin_family = AF_INET;
+    socket_address.sin_addr.s_addr = destination.m_address_ipv4;
+    socket_address.sin_port = htons((unsigned short)destination.m_port);
     
     if (size > MaxFragmentSize) {
 
         int numFragments;
         PacketData fragmentPackets[MaxFragmentsPerPacket];
         int sequence = 0;
-        SplitPacketIntoFragments(sequence, (uint8_t*)data, size, numFragments, fragmentPackets);
+        SplitPacketIntoFragments(sequence, (uint8_t*)packetData, size, numFragments, fragmentPackets);
 
         for (int j = 0; j < numFragments; ++j) {
 
-            //SendPacket(fragmentPackets[j].data, fragmentPackets[j].size);
-
-            int sent_bytes = sendto(handle,
+            int sent_bytes = sendto(socket.m_socket,
                 (const char*)fragmentPackets[j].data,
                 fragmentPackets[j].size,
                 0,
-                (sockaddr*)&destination.sock_address,
+                (sockaddr*)&socket_address,
                 sizeof(sockaddr_in));
 
         }
@@ -139,7 +143,7 @@ bool SendPacket(SocketHandle handle, const Address destination, void* data, int 
 
          uint32_t crc32 = 0;
          serialize_bits(writeStream, crc32, 32);
-         serialize_bytes(writeStream, (uint8_t*)data, size);
+         serialize_bytes(writeStream, (uint8_t*)packetData, size);
 
          FlushBits(writeStream);
 
@@ -155,15 +159,12 @@ bool SendPacket(SocketHandle handle, const Address destination, void* data, int 
          crc32 = calculate_crc32(buffer, numBytes, crc32);
          *((uint32_t*)(buffer)) = host_to_network(crc32);
 
-
-         int sent_bytes = sendto(handle,
+         int sent_bytes = sendto(socket.m_socket,
             (const char*)buffer,
             numBytes,
             0,
-            (sockaddr*)&destination.sock_address,
+             (sockaddr*)&socket_address,
             sizeof(sockaddr_in));
-
-
     }
 
     /*
@@ -174,7 +175,8 @@ bool SendPacket(SocketHandle handle, const Address destination, void* data, int 
     */
 }
 
-int RecievePackets(SocketHandle handle, Address& sender, const void* data, int size)
+// RECEIVE packets on socket FROM address
+int ReceivePackets(Socket socket, Address& sender, void* packetData, int size)
 {
     unsigned int max_packet_size = size;
 
@@ -182,20 +184,22 @@ int RecievePackets(SocketHandle handle, Address& sender, const void* data, int s
     typedef int socklen_t;
 #endif
 
-    sockaddr_in from = sender.sock_address;
-    socklen_t fromLength = sizeof(from);
+    sockaddr_storage sockaddr_from;
+    socklen_t fromLength = sizeof(sockaddr_from);
 
-    int bytes = recvfrom(handle,
-        (char*)data,
+    int bytes = recvfrom(socket.m_socket,
+        (char*)packetData,
         max_packet_size,
         0,
-        (sockaddr*)&from,
+        (sockaddr*)&sockaddr_from,
         &fromLength);
 
-    unsigned int from_address = ntohl(from.sin_addr.s_addr);
-    unsigned int from_port = ntohs(from.sin_port);
 
-    sender.ipv4 = from_address;
+
+         const sockaddr_in& addr_ipv4 = reinterpret_cast<const sockaddr_in&>(sockaddr_from);
+         sender.m_address_ipv4 = addr_ipv4.sin_addr.s_addr;
+         sender.m_port = ntohs(addr_ipv4.sin_port);
+
 
     return bytes;
     // process received packet

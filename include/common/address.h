@@ -15,7 +15,10 @@
 
 #if PLATFORM == PLATFORM_WINDOWS
 
-#include <winsock2.h>
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+	#include <winsock2.h>
+	#include <ws2tcpip.h>
+	#include <ws2ipdef.h>
 
 #elif PLATFORM == PLATFORM_MAC || PLATFORM == PLATFORM_UNIX
 
@@ -29,19 +32,20 @@
 #pragma comment(lib, "wsock32.lib")
 #endif
 
+
+
 typedef struct Address {
-    unsigned int ipv4;
-    unsigned short port;
-    sockaddr_in sock_address;
-    unsigned char a;
-    unsigned char b;
-    unsigned char c;
-    unsigned char d;
+
+    uint32_t m_address_ipv4;
+    uint16_t m_port;
+
 } Address;
 
 #include <iostream>
+
 int CreateAddress(Address& c_address, unsigned char a, unsigned char b, unsigned char c, unsigned char d, unsigned short port)
 {
+    /*
     unsigned int address = (a << 24) | (b << 16) | (c << 8) | d;
 
     sockaddr_in addr;
@@ -49,14 +53,10 @@ int CreateAddress(Address& c_address, unsigned char a, unsigned char b, unsigned
     addr.sin_addr.s_addr = htonl(address);
     addr.sin_port = htons(port);
 
-    c_address.ipv4 = address;
-    c_address.port = port;
-    c_address.sock_address = addr;
-
-    c_address.a = a;
-    c_address.b = b;
-    c_address.c = c;
-    c_address.d = d;
+    */
+    c_address.m_address_ipv4 = uint32_t(a) | (uint32_t(b) << 8) | (uint32_t(c) << 16) | (uint32_t(d) << 24);
+    //c_address.m_address_ipv4 = address;
+    c_address.m_port = port;
 
     return 1;
 }
@@ -76,8 +76,16 @@ char* DecodePrintAddress(unsigned int address) {
     return buffer;
 }
 
-const char* AddressToString(Address address, char* buffer, int bufferSize) {
-    sprintf(buffer, "%d.%d.%d.%d", static_cast<int>(address.a), static_cast<int>(address.b), static_cast<int>(address.c), static_cast<int>(address.d));
+const char* AddressToString(Address adress, char buffer[], int bufferSize)
+{
+    const uint8_t a = adress.m_address_ipv4 & 0xff;
+    const uint8_t b = (adress.m_address_ipv4 >> 8) & 0xff;
+    const uint8_t c = (adress.m_address_ipv4 >> 16) & 0xff;
+    const uint8_t d = (adress.m_address_ipv4 >> 24) & 0xff;
+    if (adress.m_port != 0)
+        snprintf(buffer, bufferSize, "%d.%d.%d.%d:%d", a, b, c, d, adress.m_port);
+    else
+        snprintf(buffer, bufferSize, "%d.%d.%d.%d", a, b, c, d);
     return buffer;
 }
 
