@@ -49,10 +49,15 @@ int main()
         if (!bytes_read)
             break;
 
+        
+
         // Unique message recieve
         if (sender.m_address_ipv4 <= 0 || sender.m_address_ipv4 != -858993460) {
 
-            
+            if (bytes_read <= 0) {
+                printf("bytes_read <= 0\n");
+                continue;
+            }
 
             printf("bytes_read: %d\n", bytes_read);
 
@@ -79,8 +84,6 @@ int main()
             uint32_t packet_type = 0;
             serialize_int(readStream, packet_type, 0, 3);
 
-            
-
             if (packet_type == 3) {
 
                 uint32_t client_server_type = 0;
@@ -89,10 +92,10 @@ int main()
                 ClientReceivePackets(client, currentTime, sender, readStream, client_server_type);
             }
 
-            ClientCheckForTimeOut(client, currentTime);
-
             //packet_switch(packet_type, readStream);
         }
+
+        ClientCheckForTimeOut(client, currentTime);
     }
 
     DestroySocket(socket.m_socket);

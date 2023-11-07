@@ -59,8 +59,15 @@ int main()
         if (!bytes_read)
             break;
 
+
         // Unique message recieve
         if (sender.m_address_ipv4 <= 0 || sender.m_address_ipv4 != -858993460) {
+
+            
+            if (bytes_read <= 0) {
+                printf("bytes_read <= 0\n");
+                continue;
+            }
 
             printf("bytes_read: %d\n", bytes_read);
 
@@ -97,12 +104,11 @@ int main()
                 serialize_int(readStream, client_server_type, 0, CLIENT_SERVER_NUM_PACKETS);
 
                 ServerReceivePackets(server, currentTime, sender, readStream, client_server_type);
-               // continue;
             }
-
-            ServerCheckForTimeOut(server, currentTime);
 
             //packet_switch(packet_type, readStream);
         }
+
+        ServerCheckForTimeOut(server, currentTime);
     }
 }
