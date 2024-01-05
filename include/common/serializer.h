@@ -5,8 +5,9 @@
 #include <stdint.h>
 #include <math.h>
 #include <string.h>
+#include <stdbool.h>
 
-const int MaxElements = 32;
+#define MaxElements 32
 
 typedef enum  {
     WRITE,
@@ -205,6 +206,9 @@ bool r_serialize_int(Stream* stream, int32_t* value, int32_t min, int32_t max)
         
         int i = 0;
         if (*value < min)
+            i++;
+
+        if (*value > max)
             i++;
 
         assert(*value >= min);
@@ -411,23 +415,24 @@ bool serialize_bytes_internal(Stream* stream, uint8_t* data, int bytes)
     } while (0)
 
 
-bool serialize_uint64_internal(Stream* stream, uint64_t& value)
+bool serialize_uint64_internal(Stream* stream, uint64_t* value)
 {
     uint32_t hi, lo;
     if (stream->type == WRITE) {
-        lo = value & 0xFFFFFFFF;
-        hi = value >> 32;
+        lo = *value & 0xFFFFFFFF;
+        hi = *value >> 32;
     }
 
     r_serialize_bits(stream, &lo, 32);
     r_serialize_bits(stream, &hi, 32);
 
     if (stream->type == READ)
-        value = (uint64_t(hi) << 32) | lo;
+        *value = ((uint64_t)(hi) << 32) | lo;
+
     return true;
 }
 
-bool serialize_uint64(Stream* stream, uint64_t& value)
+bool serialize_uint64(Stream* stream, uint64_t* value)
 {
     do {
         if (!serialize_uint64_internal(stream, value))

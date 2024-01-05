@@ -19,11 +19,14 @@ Server server;
 
 int r_server_init()
 {
+    socketHandle = 0;
+
+
     r_sockets_initialize();
 
     const int port = 30001;
 
-    if (!r_socket_create(socketHandle, port)) {
+    if (!r_socket_create(&socketHandle, port)) {
         printf("[SERVER] Failed to create socket!\n");
         return 0;
     }

@@ -61,7 +61,7 @@ bool r_serialize_packet_b(Stream* stream, PacketB* packet)
     return true;
 }
 
-static const int MaxItems = 4096 * 4;
+#define MaxItems (4096 * 4)
 
 typedef struct TestPacketB {
     int numItems;

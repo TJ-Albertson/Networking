@@ -123,8 +123,8 @@ bool SendPacket(Socket socket, const Address destination, const void* packetData
                 (const char*)fragmentPackets[j].data,
                 fragmentPackets[j].size,
                 0,
-                (sockaddr*)&socket_address,
-                sizeof(sockaddr_in));
+                (SOCKADDR*)&socket_address,
+                sizeof(SOCKADDR_IN));
 
         }
             
@@ -163,8 +163,8 @@ bool SendPacket(Socket socket, const Address destination, const void* packetData
             (const char*)buffer,
             numBytes,
             0,
-             (sockaddr*)&socket_address,
-            sizeof(sockaddr_in));
+             (SOCKADDR*)&socket_address,
+            sizeof(SOCKADDR_IN));
     }
 
     /*
@@ -184,18 +184,18 @@ int ReceivePackets(Socket socket, Address* sender, void* packetData, int size)
     typedef int socklen_t;
 #endif
 
-    SOCKADDR_STORAGE sockaddr_from;
-    socklen_t fromLength = sizeof(sockaddr_from);
+    SOCKADDR_STORAGE SOCKADDR_from;
+    socklen_t fromLength = sizeof(SOCKADDR_from);
     
 
     int bytes = recvfrom(socket.m_socket,
         (char*)packetData,
         max_packet_size,
         0,
-        (sockaddr*)&sockaddr_from,
+        (SOCKADDR*)&SOCKADDR_from,
         &fromLength);
 
-        const SOCKADDR_IN* addr_ipv4 = (const SOCKADDR_IN*)&sockaddr_from;
+        const SOCKADDR_IN* addr_ipv4 = (const SOCKADDR_IN*)&SOCKADDR_from;
         sender->m_address_ipv4 = addr_ipv4->sin_addr.s_addr;
         sender->m_port = ntohs(addr_ipv4->sin_port);
 

@@ -247,7 +247,7 @@ bool SplitPacketIntoFragments(uint16_t sequence, const uint8_t* packetData, int 
 {
     numFragments = 0;
 
-    assert(packetData);
+    assert(*packetData);
     assert(packetSize > 0);
     assert(packetSize < MaxPacketSize);
 
@@ -260,8 +260,9 @@ bool SplitPacketIntoFragments(uint16_t sequence, const uint8_t* packetData, int 
 
     printf("splitting packet into %d fragments\n", *numFragments);
 
-    for (int i = 0; i < *numFragments; ++i) {
-        const int fragmentSize = (i == *numFragments - 1) ? ((int)(intptr_t(packetData + packetSize) - intptr_t(src))) : MaxFragmentSize;
+    for (int i = 0; i < *numFragments; ++i) 
+    {
+        const int fragmentSize = (i == *numFragments - 1) ? ((int)((intptr_t)(*packetData + packetSize) - (intptr_t)(src))) : MaxFragmentSize;
 
         static const int MaxFragmentPacketSize = MaxFragmentSize + PacketFragmentHeaderBytes;
 
