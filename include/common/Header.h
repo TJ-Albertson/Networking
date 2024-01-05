@@ -67,7 +67,7 @@ int main()
             int bufferSize = 256;
 
             Stream readStream;
-            InitReadStream(readStream, buffer, bufferSize);
+            r_stream_read_init(readStream, buffer, bufferSize);
 
             uint32_t read_crc32 = 0;
             SerializeBits(readStream, read_crc32, 32);

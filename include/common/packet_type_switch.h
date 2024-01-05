@@ -8,7 +8,7 @@
 #include "fragment.h"
 
 
-void packet_switch(int packet_type, Stream& readStream) {
+void packet_switch(int packet_type, Stream* readStream) {
 
 	switch (packet_type) {
     case 0:
@@ -20,7 +20,7 @@ void packet_switch(int packet_type, Stream& readStream) {
         
         PacketA packet;
 
-        packet.Serialize(readStream);
+        r_serialize_packet_a(readStream, &packet);
 
         printf("packet.x: %d\n", packet.x);
         printf("packet.y: %d\n", packet.y);
@@ -32,7 +32,7 @@ void packet_switch(int packet_type, Stream& readStream) {
         
         TestPacketB testpacket;
 
-        testpacket.Serialize(readStream);
+        r_serialize_test_packet_b(readStream, &testpacket);
 
         printf("testpacket.numItems %d\v", testpacket.numItems);
 

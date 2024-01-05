@@ -150,7 +150,7 @@ int main()
 
         
         Stream readStream;
-        InitReadStream(readStream, buffer, 256);
+        r_stream_read_init(readStream, buffer, 256);
         
         PacketA packet;
 

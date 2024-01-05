@@ -16,7 +16,7 @@ typedef struct Socket {
     SocketHandle m_socket;
 } Socket;
 
-bool InitializeSockets()
+bool r_sockets_initialize()
 {
 #if PLATFORM == PLATFORM_WINDOWS
     WSADATA WsaData;
@@ -28,32 +28,32 @@ bool InitializeSockets()
 #endif
 }
 
-void ShutdownSockets()
+void r_sockets_shutdown()
 {
 #if PLATFORM == PLATFORM_WINDOWS
     WSACleanup();
 #endif
 }
 
-bool CreateSocket(SocketHandle& handle, unsigned short port)
+bool r_socket_create(SocketHandle* handle, unsigned short port)
 {
-    handle = socket(AF_INET,
+    *handle = socket(AF_INET,
         SOCK_DGRAM,
         IPPROTO_UDP);
 
-    if (handle <= 0) {
+    if (*handle <= 0) {
         printf("failed to create socket\n");
         return false;
     }
 
-    sockaddr_in address;
+    SOCKADDR_IN address;
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons((unsigned short)port);
 
-    if (bind(handle,
-            (const sockaddr*)&address,
-            sizeof(sockaddr_in))
+    if (bind(*handle,
+            (const SOCKADDR*)&address,
+            sizeof(SOCKADDR_IN))
         < 0) {
         printf("failed to bind socket\n");
         return false;
@@ -74,7 +74,7 @@ bool CreateSocket(SocketHandle& handle, unsigned short port)
 #elif PLATFORM == PLATFORM_WINDOWS
 
     DWORD nonBlocking = 1;
-    if (ioctlsocket(handle,
+    if (ioctlsocket(*handle,
             FIONBIO,
             &nonBlocking)
         != 0) {
@@ -87,12 +87,12 @@ bool CreateSocket(SocketHandle& handle, unsigned short port)
     return true;
 }
 
-void DestroySocket(SocketHandle& socket)
+void r_socket_destroy(SocketHandle* socket)
 {
 #if PLATFORM == PLATFORM_MAC || PLATFORM == PLATFORM_UNIX
     close(socket);
 #elif PLATFORM == PLATFORM_WINDOWS
-    closesocket(socket);
+    closesocket(*socket);
 #endif
 }
 
@@ -104,7 +104,7 @@ bool SendPacket(Socket socket, const Address destination, const void* packetData
 {
     uint8_t buffer[2000];
 
-    sockaddr_in socket_address;
+    SOCKADDR_IN socket_address;
     memset(&socket_address, 0, sizeof(socket_address));
     socket_address.sin_family = AF_INET;
     socket_address.sin_addr.s_addr = destination.m_address_ipv4;
@@ -115,7 +115,7 @@ bool SendPacket(Socket socket, const Address destination, const void* packetData
         int numFragments;
         PacketData fragmentPackets[MaxFragmentsPerPacket];
         int sequence = 0;
-        SplitPacketIntoFragments(sequence, (uint8_t*)packetData, size, numFragments, fragmentPackets);
+        SplitPacketIntoFragments(sequence, (uint8_t*)packetData, size, &numFragments, fragmentPackets);
 
         for (int j = 0; j < numFragments; ++j) {
 
@@ -139,17 +139,17 @@ bool SendPacket(Socket socket, const Address destination, const void* packetData
          int size_plus_crc = size + 4;
 
          Stream writeStream;
-         InitWriteStream(writeStream, buffer, size_plus_crc);
+         r_stream_write_init(&writeStream, buffer, size_plus_crc);
 
          uint32_t crc32 = 0;
-         serialize_bits(writeStream, crc32, 32);
-         serialize_bytes(writeStream, (uint8_t*)packetData, size);
+         r_serialize_bits(&writeStream, &crc32, 32);
+         serialize_bytes(&writeStream, (uint8_t*)packetData, size);
 
-         FlushBits(writeStream);
+         FlushBits(&writeStream);
 
-         int align_bits = GetAlignBits(writeStream);
+         int align_bits = GetAlignBits(&writeStream);
 
-         int numBytes = (writeStream.m_bitsProcessed + align_bits) / 8;
+         int numBytes = (writeStream.bits_processed + align_bits) / 8;
 
          printf("numBytes: %d\n", numBytes);
 
@@ -176,7 +176,7 @@ bool SendPacket(Socket socket, const Address destination, const void* packetData
 }
 
 // RECEIVE packets on socket FROM address
-int ReceivePackets(Socket socket, Address& sender, void* packetData, int size)
+int ReceivePackets(Socket socket, Address* sender, void* packetData, int size)
 {
     unsigned int max_packet_size = size;
 
@@ -184,8 +184,9 @@ int ReceivePackets(Socket socket, Address& sender, void* packetData, int size)
     typedef int socklen_t;
 #endif
 
-    sockaddr_storage sockaddr_from;
+    SOCKADDR_STORAGE sockaddr_from;
     socklen_t fromLength = sizeof(sockaddr_from);
+    
 
     int bytes = recvfrom(socket.m_socket,
         (char*)packetData,
@@ -194,11 +195,10 @@ int ReceivePackets(Socket socket, Address& sender, void* packetData, int size)
         (sockaddr*)&sockaddr_from,
         &fromLength);
 
+        const SOCKADDR_IN* addr_ipv4 = (const SOCKADDR_IN*)&sockaddr_from;
+        sender->m_address_ipv4 = addr_ipv4->sin_addr.s_addr;
+        sender->m_port = ntohs(addr_ipv4->sin_port);
 
-
-         const sockaddr_in& addr_ipv4 = reinterpret_cast<const sockaddr_in&>(sockaddr_from);
-         sender.m_address_ipv4 = addr_ipv4.sin_addr.s_addr;
-         sender.m_port = ntohs(addr_ipv4.sin_port);
 
 
     return bytes;

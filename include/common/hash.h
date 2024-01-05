@@ -117,19 +117,19 @@ uint64_t murmur_hash_64(const void* key, uint32_t length, uint64_t seed)
 
     switch (length & 7) {
     case 7:
-        h ^= uint64_t(data2[6]) << 48;
+        h ^= (uint64_t)(data2[6]) << 48;
     case 6:
-        h ^= uint64_t(data2[5]) << 40;
+        h ^= (uint64_t)(data2[5]) << 40;
     case 5:
-        h ^= uint64_t(data2[4]) << 32;
+        h ^= (uint64_t)(data2[4]) << 32;
     case 4:
-        h ^= uint64_t(data2[3]) << 24;
+        h ^= (uint64_t)(data2[3]) << 24;
     case 3:
-        h ^= uint64_t(data2[2]) << 16;
+        h ^= (uint64_t)(data2[2]) << 16;
     case 2:
-        h ^= uint64_t(data2[1]) << 8;
+        h ^= (uint64_t)(data2[1]) << 8;
     case 1:
-        h ^= uint64_t(data2[0]);
+        h ^= (uint64_t)(data2[0]);
         h *= m;
     };
 

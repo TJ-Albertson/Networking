@@ -3,20 +3,20 @@
 
 int main()
 {
-    InitializeSockets();
+    r_sockets_initialize();
 
     const int port = 30000;
 
     SocketHandle socketHandle;
 
-    if (!CreateSocket(socketHandle, port)) {
+    if (!r_socket_create(&socketHandle, port)) {
         printf("failed to create socket!\n");
         return false;
     }
 
     Address serverAddress;
 
-    CreateAddress(serverAddress, 127, 0, 0, 1, 30001);
+    CreateAddress(&serverAddress, 127, 0, 0, 1, 30001);
 
     char input[100];
 
@@ -25,24 +25,24 @@ int main()
     socket.m_socket = socketHandle;
 
     Client client;
-    CreateClient(client, socket);
+    CreateClient(&client, socket);
 
     time_t currentTime;
     time(&currentTime);
 
     uint8_t buffer[MaxPacketSize];
 
-    ClientConnect(client, serverAddress, currentTime);
+    ClientConnect(&client, serverAddress, currentTime);
 
     while (1) {
 
         time(&currentTime);
 
-        ClientSendPackets(client, currentTime);
+        ClientSendPackets(&client, currentTime);
 
         Address sender;
 
-        int bytes_read = ReceivePackets(socket, sender,
+        int bytes_read = ReceivePackets(socket, &sender,
             buffer,
             sizeof(buffer));
 
@@ -62,10 +62,10 @@ int main()
             printf("bytes_read: %d\n", bytes_read);
 
             Stream readStream;
-            InitReadStream(readStream, buffer, bytes_read);
+            r_stream_read_init(&readStream, buffer, bytes_read);
 
             uint32_t read_crc32 = 0;
-            SerializeBits(readStream, read_crc32, 32);
+            r_serialize_bits(&readStream, &read_crc32, 32);
 
             uint32_t network_protocolId = host_to_network(packetInfo.protocolId);
             uint32_t crc32 = calculate_crc32((const uint8_t*)&network_protocolId, 4, 0);
@@ -81,23 +81,23 @@ int main()
             }
 
 
-            uint32_t packet_type = 0;
-            serialize_int(readStream, packet_type, 0, 3);
+            int32_t packet_type = 0;
+            r_serialize_int(&readStream, &packet_type, 0, 3);
 
             if (packet_type == 3) {
 
-                uint32_t client_server_type = 0;
-                serialize_int(readStream, client_server_type, 0, CLIENT_SERVER_NUM_PACKETS);
+                int32_t client_server_type = 0;
+                r_serialize_int(&readStream, &client_server_type, 0, CLIENT_SERVER_NUM_PACKETS);
 
-                ClientReceivePackets(client, currentTime, sender, readStream, client_server_type);
+                ClientReceivePackets(&client, currentTime, sender, &readStream, client_server_type);
             }
 
-            //packet_switch(packet_type, readStream);
+            //retir(packet_type, readStream);
         }
 
-        ClientCheckForTimeOut(client, currentTime);
+        ClientCheckForTimeOut(&client, currentTime);
     }
 
-    DestroySocket(socket.m_socket);
-    ShutdownSockets();
+    r_socket_destroy(&socket.m_socket);
+    r_sockets_shutdown();
 }

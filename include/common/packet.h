@@ -5,30 +5,22 @@
 #include "serializer.h"
 #include "utils.h"
 
-const int PacketBufferSize = 256; // size of packet buffer, eg. number of historical packets for which we can buffer fragments
-const int MaxFragmentSize = 1024; // maximum size of a packet fragment
-const int MaxFragmentsPerPacket = 256; // maximum number of fragments per-packet
-const int MaxPacketSize = MaxFragmentSize * MaxFragmentsPerPacket;
-const int PacketFragmentHeaderBytes = 16;
+#define PacketBufferSize 256 // size of packet buffer, eg. number of historical packets for which we can buffer fragments
+#define MaxFragmentSize 1024 // maximum size of a packet fragment
+#define MaxFragmentsPerPacket 256 // maximum number of fragments per-packet
+#define MaxPacketSize (MaxFragmentSize * MaxFragmentsPerPacket)
+#define PacketFragmentHeaderBytes 16
 
-struct PacketInfo {
+typedef unsigned int uint;
+
+typedef struct PacketInfo {
     bool rawFormat; // if true packets are written in "raw" format without crc32 (useful for encrypted packets).
     int prefixBytes; // prefix this number of bytes when reading and writing packets. stick your own data there.
     uint32_t protocolId; // protocol id that distinguishes your protocol from other packets sent over UDP.
     // PacketFactory* packetFactory; // create packets and determine information about packet types. required.
     const uint8_t* allowedPacketTypes; // array of allowed packet types. if a packet type is not allowed the serialize read or write will fail.
     void* context; // context for the packet serialization (optional, pass in NULL)
-
-    PacketInfo()
-    {
-        rawFormat = false;
-        prefixBytes = 0;
-        protocolId = 0;
-        // packetFactory = NULL;
-        allowedPacketTypes = NULL;
-        context = NULL;
-    }
-};
+} PacketInfo;
 
 enum TestPacketTypes {
     PACKET_FRAGMENT = 0, // IMPORTANT: packet type 0 indicates a packet fragment
@@ -42,54 +34,55 @@ enum TestPacketTypes {
 
 PacketInfo packetInfo;
 
-struct PacketA {
+typedef struct {
     int x, y, z;
+} PacketA;
 
-    bool Serialize(Stream& stream)
-    {
-        serialize_bits(stream, x, 32);
-        serialize_bits(stream, y, 32);
-        serialize_bits(stream, z, 32);
-        return true;
-    }
-};
+bool r_serialize_packet_a(Stream* stream, PacketA* packet)
+{
+    r_serialize_bits(stream, &packet->x, 32);
+    r_serialize_bits(stream, &packet->y, 32);
+    r_serialize_bits(stream, &packet->z, 32);
+    return true;
+}
 
-struct PacketB {
+
+typedef struct PacketB {
     int numElements;
     int elements[MaxElements];
+} PacketB;
 
-    bool Serialize(Stream& stream)
-    {
-        serialize_int(stream, numElements, 0, MaxElements);
-        for (int i = 0; i < numElements; ++i) {
-            serialize_bits(stream, elements[i], 32);
-        }
-        return true;
+bool r_serialize_packet_b(Stream* stream, PacketB* packet)
+{
+    r_serialize_int(stream, &packet->numElements, 0, MaxElements);
+    for (int i = 0; i < packet->numElements; ++i) {
+        r_serialize_bits(stream, &packet->elements[i], 32);
     }
-};
+    return true;
+}
 
 static const int MaxItems = 4096 * 4;
 
-struct TestPacketB {
+typedef struct TestPacketB {
     int numItems;
     int items[MaxItems];
+} TestPacketB;
 
-    void randomFill()
-    {
-        //numItems = random_int(0, MaxItems);
-        for (int i = 0; i < numItems; ++i)
-            items[i] = random_int(-100, +100);
+bool r_serialize_test_packet_b(Stream* stream, TestPacketB* packet)
+{
+    r_serialize_int(stream, &packet->numItems, 0, MaxItems);
+    for (int i = 0; i < packet->numItems; ++i) {
+        r_serialize_int(stream, &packet->items[i], -100, +100);
     }
+    return true;
+}
 
-    bool Serialize(Stream& stream)
-    {
-        serialize_int(stream, numItems, 0, MaxItems);
-        for (int i = 0; i < numItems; ++i) {
-            serialize_int(stream, items[i], -100, +100);
-        }
-        return true;
-    }
-};
+void r_test_packet_b_fill(TestPacketB* packet)
+{
+    // numItems = random_int(0, MaxItems);
+    for (int i = 0; i < packet->numItems; ++i)
+        packet->items[i] = random_int(-100, +100);
+}
 
 
 /*
@@ -104,13 +97,12 @@ struct TestPacketB {
 
 */
 
-struct FragmentPacket {
+typedef struct FragmentPacket {
     // input/output
 
     int fragmentSize; // set as input on serialize write. output on serialize read (inferred from size of packet)
 
     // serialized data
-
     uint32_t crc32;
     uint16_t sequence;
     int packetType;
@@ -118,39 +110,39 @@ struct FragmentPacket {
     uint8_t numFragments;
 
     uint8_t fragmentData[MaxFragmentSize];
+} FragmentPacket;
 
-    bool Serialize(Stream& stream)
-    {
-        serialize_bits(stream, crc32, 32);
-        serialize_bits(stream, sequence, 16);
+bool r_serialize_fragment(Stream* stream, FragmentPacket* packet)
+{
+    r_serialize_bits(stream, &packet->crc32, 32);
+    r_serialize_bits(stream, &packet->sequence, 16);
 
-        packetType = 0;
-        serialize_int(stream, packetType, 0, TEST_PACKET_NUM_TYPES - 1);
-        if (packetType != 0)
-            return true;
-
-        serialize_bits(stream, fragmentId, 8);
-        serialize_bits(stream, numFragments, 8);
-
-        serialize_align(stream);
-
-        if (stream.type == READ) {
-            assert((GetBitsRemaining(stream) % 8) == 0);
-            fragmentSize = GetBitsRemaining(stream) / 8;
-            if (fragmentSize <= 0 || fragmentSize > MaxFragmentSize) {
-                printf("packet fragment size is out of bounds (%d)\n", fragmentSize);
-                return false;
-            }
-        }
-
-        assert(fragmentSize > 0);
-        assert(fragmentSize <= MaxFragmentSize);
-
-        serialize_bytes(stream, fragmentData, fragmentSize);
-
+    packet->packetType = 0;
+    r_serialize_int(stream, &packet->packetType, 0, TEST_PACKET_NUM_TYPES - 1);
+    if (packet->packetType != 0)
         return true;
+
+    r_serialize_bits(stream, &packet->fragmentId, 8);
+    r_serialize_bits(stream, &packet->numFragments, 8);
+
+    serialize_align(stream);
+
+    if (stream->type == READ) {
+        assert((GetBitsRemaining(stream) % 8) == 0);
+        packet->fragmentSize = GetBitsRemaining(stream) / 8;
+        if (packet->fragmentSize <= 0 || packet->fragmentSize > MaxFragmentSize) {
+            printf("packet fragment size is out of bounds (%d)\n", packet->fragmentSize);
+            return false;
+        }
     }
-};
+
+    assert(packet->fragmentSize > 0);
+    assert(packet->fragmentSize <= MaxFragmentSize);
+
+    serialize_bytes(stream, packet->fragmentData, packet->fragmentSize);
+
+    return true;
+}
 
 
 

@@ -60,7 +60,7 @@ int main()
             packet.z = 5;
 
             Stream writeStream;
-            InitWriteStream(writeStream, buffer, 32);
+            r_stream_write_init(writeStream, buffer, 32);
 
             uint32_t packetType = 1;
             serialize_int(writeStream, packetType, 0, 2);
@@ -92,7 +92,7 @@ int main()
             printf("testpacket.items[1108]: %d\n", testpacket.items[1108]);
 
             Stream writeStream;
-            InitWriteStream(writeStream, buffer, 2000);
+            r_stream_write_init(writeStream, buffer, 2000);
 
             uint32_t packetType = 2;
             serialize_int(writeStream, packetType, 0, 2);

@@ -6,129 +6,56 @@
 #include <math.h>
 #include <string.h>
 
-template <uint32_t x>
-struct PopCount {
-    enum { a = x - ((x >> 1) & 0x55555555),
-        b = (((a >> 2) & 0x33333333) + (a & 0x33333333)),
-        c = (((b >> 4) + b) & 0x0f0f0f0f),
-        d = c + (c >> 8),
-        e = d + (d >> 16),
-        result = e & 0x0000003f };
-};
-
-template <uint32_t x>
-struct Log2 {
-    enum { a = x | (x >> 1),
-        b = a | (a >> 2),
-        c = b | (b >> 4),
-        d = c | (c >> 8),
-        e = d | (d >> 16),
-        f = e >> 1,
-        result = PopCount<f>::result };
-};
-
-template <int64_t min, int64_t max>
-struct BitsRequired {
-    static const uint32_t result = (min == max) ? 0 : (Log2<uint32_t(max - min)>::result + 1);
-};
-
-#define BITS_REQUIRED(min, max) BitsRequired<min, max>::result
-
 const int MaxElements = 32;
-const int MaxElementBits = BITS_REQUIRED(0, MaxElements);
 
-typedef struct BitWriter {
-    uint32_t* buffer;
-    uint64_t scratch;
-
-    int m_numBits;
-    int m_bitsWritten;
-    int scratch_bits;
-    int word_index;
-} BitWriter;
-
-typedef struct BitReader {
-    uint32_t* buffer;
-    uint64_t scratch;
-
-    int scratch_bits;
-    int total_bits;
-    int total_bits_read;
-    int word_index;
-} BitReader;
-
-enum StreamType {
+typedef enum  {
     WRITE,
     READ
-};
+} StreamType;
 
-typedef struct reader {
-    const uint32_t* m_data;
-    uint64_t m_scratch;
-
-    int m_numBits;
-
-    int m_bitsRead;
-
-    int m_wordIndex;
-    int m_scratchBits;
-};
-
-typedef struct writer {
-    uint32_t* m_data;
-    uint64_t m_scratch;
-
-    int m_numBits;
-
-    int m_bitsWritten;
-
-    int m_wordIndex;
-    int m_scratchBits;
-};
-
-typedef struct Stream {
+typedef struct {
     StreamType type;
 
-    uint32_t* m_data;
-    uint64_t m_scratch;
+    uint32_t* data;
+    uint64_t scratch;
 
-    int m_numBits;
-    int m_bitsProcessed;
+    int num_bits;
+    int bits_processed;
 
-    int m_wordIndex;
-    int m_scratchBits;
+    int word_index;
+    int scratch_bits;
 } Stream;
 
 
-bool InitWriteStream(Stream& stream, void* data, int bytes)
+bool r_stream_write_init(Stream* stream, void* data, int bytes)
 {
     assert(data);
     assert((bytes % 4) == 0); // buffer size must be a multiple of four
 
-    stream.type = WRITE;
-    stream.m_data = (uint32_t*)data;
-    stream.m_numBits = bytes * 8;
+    stream->type = WRITE;
+    stream->data = (uint32_t*)data;
+    stream->num_bits = bytes * 8;
 
-    stream.m_bitsProcessed = 0;
-    stream.m_scratch = 0;
-    stream.m_scratchBits = 0;
-    stream.m_wordIndex = 0;
+    stream->bits_processed = 0;
+    stream->scratch = 0;
+    stream->scratch_bits = 0;
+    stream->word_index = 0;
 
     return true;
 }
 
-bool InitReadStream(Stream& stream, const void* data, int bytes)
+bool r_stream_read_init(Stream* stream, const void* data, int bytes)
 {
     assert(data);
     
-    stream.type = READ;
-    stream.m_data = (uint32_t*)data;
-    stream.m_numBits = bytes * 8;
+    stream->type = READ;
+    stream->data = (uint32_t*)data;
+    stream->num_bits = bytes * 8;
 
-    stream.m_bitsProcessed = 0;
-    stream.m_scratch = 0;
-    stream.m_scratchBits = 0;
-    stream.m_wordIndex = 0;
+    stream->bits_processed = 0;
+    stream->scratch = 0;
+    stream->scratch_bits = 0;
+    stream->word_index = 0;
 
     return true;
 }
@@ -157,220 +84,205 @@ inline int bits_required(uint32_t min, uint32_t max)
     return (min == max) ? 0 : log2(max - min) + 1;
 }
 
-void WriteBits(Stream& stream, uint32_t value, int bits)
+void r_stream_write_bits(Stream* stream, uint32_t value, int bits)
 {
     assert(bits > 0);
     assert(bits <= 32);
-    assert(stream.m_bitsProcessed + bits <= stream.m_numBits);
+    assert(stream->bits_processed + bits <= stream->num_bits);
 
-    value &= (uint64_t(1) << bits) - 1;
+    value &= ((uint64_t)(1) << bits) - 1;
 
-    stream.m_scratch |= uint64_t(value) << stream.m_scratchBits;
+    stream->scratch |= (uint64_t)(value) << stream->scratch_bits;
 
-    stream.m_scratchBits += bits;
+    stream->scratch_bits += bits;
 
-    if (stream.m_scratchBits >= 32) {
-        stream.m_data[stream.m_wordIndex] = host_to_network(uint32_t(stream.m_scratch & 0xFFFFFFFF));
-        stream.m_scratch >>= 32;
-        stream.m_scratchBits -= 32;
-        stream.m_wordIndex++;
+    if (stream->scratch_bits >= 32) 
+    {
+        stream->data[stream->word_index] = host_to_network((uint32_t)(stream->scratch & 0xFFFFFFFF));
+        stream->scratch >>= 32;
+        stream->scratch_bits -= 32;
+        stream->word_index++;
     }
 
-    stream.m_bitsProcessed += bits;
+    stream->bits_processed += bits;
 }
 
-uint32_t ReadBits(Stream& stream, int bits)
+uint32_t r_stream_read_bits(Stream* stream, int bits)
 {
     assert(bits > 0);
     assert(bits <= 32);
-    assert(stream.m_bitsProcessed + bits <= stream.m_numBits);
+    assert(stream->bits_processed + bits <= stream->num_bits);
 
-    stream.m_bitsProcessed += bits;
+    stream->bits_processed += bits;
 
-    assert(stream.m_scratchBits >= 0 && stream.m_scratchBits <= 64);
+    assert(stream->scratch_bits >= 0 && stream->scratch_bits <= 64);
 
-    if (stream.m_scratchBits < bits) {
-        stream.m_scratch |= uint64_t(network_to_host(stream.m_data[stream.m_wordIndex])) << stream.m_scratchBits;
-        stream.m_scratchBits += 32;
-        stream.m_wordIndex++;
+    if (stream->scratch_bits < bits) {
+        stream->scratch |= (uint64_t)(network_to_host(stream->data[stream->word_index])) << stream->scratch_bits;
+        stream->scratch_bits += 32;
+        stream->word_index++;
     }
 
-    assert(stream.m_scratchBits >= bits);
+    assert(stream->scratch_bits >= bits);
 
-    const uint32_t output = stream.m_scratch & ((uint64_t(1) << bits) - 1);
+    const uint32_t output = stream->scratch & (((uint64_t)(1) << bits) - 1);
 
-    stream.m_scratch >>= bits;
-    stream.m_scratchBits -= bits;
+    stream->scratch >>= bits;
+    stream->scratch_bits -= bits;
 
     return output;
 }
 
-void FlushBits(Stream& stream)
+void FlushBits(Stream* stream)
 {
-    if (stream.m_scratchBits != 0) {
-        stream.m_data[stream.m_wordIndex] = host_to_network(uint32_t(stream.m_scratch & 0xFFFFFFFF));
-        stream.m_scratch >>= 32;
-        stream.m_scratchBits -= 32;
-        stream.m_wordIndex++;
+    if (stream->scratch_bits != 0) {
+        stream->data[stream->word_index] = host_to_network((uint32_t)(stream->scratch & 0xFFFFFFFF));
+        stream->scratch >>= 32;
+        stream->scratch_bits -= 32;
+        stream->word_index++;
     }
 }
 
-int GetAlignBits(Stream& stream)
+int GetAlignBits(Stream* stream)
 {
-    return (8 - stream.m_bitsProcessed % 8) % 8;
+    return (8 - stream->bits_processed % 8) % 8;
 }
 
-int GetBytesProcessed(Stream& stream)
+int GetBytesProcessed(Stream* stream)
 {
-    return (stream.m_bitsProcessed + 7) / 8;
+    return (stream->bits_processed + 7) / 8;
 }
 
-int GetBitsRemaining(Stream& stream)
+int GetBitsRemaining(Stream* stream)
 {
-    return stream.m_numBits - stream.m_bitsProcessed;
+    return stream->num_bits - stream->bits_processed;
 }
 
 bool WouldOverflow(Stream stream, int bits)
 {
     assert(stream.type == READ);
 
-    return stream.m_bitsProcessed + bits > stream.m_numBits;
+    return stream.bits_processed + bits > stream.num_bits;
 }
 
-bool SerializeBits(Stream& stream, uint32_t& value, int bits)
+
+
+
+/*
+*   Base serialize functions
+*/
+bool r_serialize_bits(Stream* stream, void* value, int bits)
 {
+    uint32_t* new_value = (uint32_t*)value;
     assert(bits > 0);
     assert(bits <= 32);
 
-    if (stream.type == WRITE) {
+    if (stream->type == WRITE) {
 
-        WriteBits(stream, value, bits);
+        r_stream_write_bits(stream, *new_value, bits);
         return true;
     }
 
-    if (stream.type == READ) {
+    if (stream->type == READ) {
 
-        if (WouldOverflow(stream, bits)) {
+        if (WouldOverflow(*stream, bits)) {
             return false;
         }
 
-        uint32_t read_value = ReadBits(stream, bits);
-        value = read_value;
-        //stream.m_bitsProcessed += bits;
+        uint32_t read_value = r_stream_read_bits(stream, bits);
+        *(uint32_t*)value = read_value;
+
         return true;
     }
 }
 
-#define serialize_bits(stream, value, bits)            \
-    do {                                               \
-        assert(bits > 0);                              \
-        assert(bits <= 32);                            \
-        uint32_t uint32_value;                         \
-        if (stream.type == WRITE)                      \
-            uint32_value = (uint32_t)value;            \
-        if (!SerializeBits(stream, uint32_value, bits)) \
-            return false;                              \
-        if (stream.type == READ)                       \
-            value = uint32_value;                      \
-    } while (0)
-
-
-bool SerializeInteger(Stream& stream, int32_t& value, int32_t min, int32_t max)
+bool r_serialize_int(Stream* stream, int32_t* value, int32_t min, int32_t max)
 {
     assert(min < max);
     const int bits = bits_required(min, max);
 
-    if (stream.type == WRITE) {
+    if (stream->type == WRITE) {
         
-        assert(value >= min);
-        assert(value <= max);
+        int i = 0;
+        if (*value < min)
+            i++;
 
-        uint32_t unsigned_value = value - min;
-        WriteBits(stream, unsigned_value, bits);
+        assert(*value >= min);
+        assert(*value <= max);
+
+        uint32_t unsigned_value = *value - min;
+        r_stream_write_bits(stream, unsigned_value, bits);
         return true;
     }
 
-    if (stream.type == READ) {
+    if (stream->type == READ) {
 
-        if (WouldOverflow(stream, bits)) {
+        if (WouldOverflow(*stream, bits)) {
             printf("Read Error: Would Overflow\n");
             return false;
         }
 
-        uint32_t unsigned_value = ReadBits(stream, bits);
-        value = (int32_t)unsigned_value + min;
-        //stream.m_bitsProcessed += bits;
+        uint32_t unsigned_value = r_stream_read_bits(stream, bits);
+
+        *value = (int32_t)unsigned_value + min;
+
+        if (*value < min || *value > max)
+            return false;      
+        //stream->bits_processed += bits;
         return true;
     }
 }
 
-#define serialize_int(stream, value, min, max)                   \
-    do {                                                        \
-        assert(min < max);                                      \
-        int32_t int32_value;                                    \
-        if (stream.type == WRITE) {                             \
-            assert(int64_t(value) >= int64_t(min));             \
-            assert(int64_t(value) <= int64_t(max));             \
-            int32_value = (int32_t)value;                       \
-        }                                                       \
-        if (!SerializeInteger(stream, int32_value, min, max))   \
-            return false;                                       \
-        if (stream.type == READ) {                              \
-            value = int32_value;                                \
-            if (value < min || value > max)                     \
-                return false;                                   \
-        }                                                       \
-    } while (0)
 
 // Intended for 
-void WriteAlign(Stream& stream)
+void WriteAlign(Stream* stream)
 {
-    assert(stream.type == WRITE);
+    assert(stream->type == WRITE);
 
-    const int remainderBits = stream.m_bitsProcessed % 8;
+    const int remainderBits = stream->bits_processed % 8;
     if (remainderBits != 0) {
         uint32_t zero = 0;
-        WriteBits(stream, zero, 8 - remainderBits);
-        assert((stream.m_bitsProcessed % 8) == 0);
+        r_stream_write_bits(stream, zero, 8 - remainderBits);
+        assert((stream->bits_processed % 8) == 0);
     }
 }
 
-bool ReadAlign(Stream& stream)
+bool ReadAlign(Stream* stream)
 {
-    assert(stream.type == READ);
+    assert(stream->type == READ);
 
-    const int remainderBits = stream.m_bitsProcessed % 8;
+    const int remainderBits = stream->bits_processed % 8;
     if (remainderBits != 0) 
     {
-        uint32_t value = ReadBits(stream, 8 - remainderBits);
-        assert(stream.m_bitsProcessed % 8 == 0);
+        uint32_t value = r_stream_read_bits(stream, 8 - remainderBits);
+        assert(stream->bits_processed % 8 == 0);
         if (value != 0)
             return false;
     }
     return true;
 }
 
-bool SerializeAlign(Stream& stream)
+bool SerializeAlign(Stream* stream)
 {
-    if (stream.type == WRITE) {
+    if (stream->type == WRITE) {
         WriteAlign(stream);
         return true;
     }
 
-    if (stream.type == READ) {
+    if (stream->type == READ) {
 
         const int alignBits = GetAlignBits(stream);
 
         
 
-        if (WouldOverflow(stream, alignBits)) {
+        if (WouldOverflow(*stream, alignBits)) {
             return false;
         }
 
         if (!ReadAlign(stream))
             return false;
 
-        //stream.m_bitsProcessed += alignBits;
+        //stream->bits_processed += alignBits;
         return true;
     }
 }
@@ -384,17 +296,17 @@ bool SerializeAlign(Stream& stream)
 
 
 
-void ReadBytes(Stream& stream, uint8_t* data, int bytes)
+void ReadBytes(Stream* stream, uint8_t* data, int bytes)
 {
     assert(GetAlignBits(stream) == 0);
-    assert(stream.m_bitsProcessed + bytes * 8 <= stream.m_numBits);
-    assert((stream.m_bitsProcessed % 32) == 0 || (stream.m_bitsProcessed % 32) == 8 || (stream.m_bitsProcessed % 32) == 16 || (stream.m_bitsProcessed % 32) == 24);
+    assert(stream->bits_processed + bytes * 8 <= stream->num_bits);
+    assert((stream->bits_processed % 32) == 0 || (stream->bits_processed % 32) == 8 || (stream->bits_processed % 32) == 16 || (stream->bits_processed % 32) == 24);
 
-    int headBytes = (4 - (stream.m_bitsProcessed % 32) / 8) % 4;
+    int headBytes = (4 - (stream->bits_processed % 32) / 8) % 4;
     if (headBytes > bytes)
         headBytes = bytes;
     for (int i = 0; i < headBytes; ++i)
-        data[i] = (uint8_t)ReadBits(stream, 8);
+        data[i] = (uint8_t)r_stream_read_bits(stream, 8);
     if (headBytes == bytes)
         return;
 
@@ -402,11 +314,11 @@ void ReadBytes(Stream& stream, uint8_t* data, int bytes)
 
     int numWords = (bytes - headBytes) / 4;
     if (numWords > 0) {
-        assert((stream.m_bitsProcessed % 32) == 0);
-        memcpy(data + headBytes, &stream.m_data[stream.m_wordIndex], numWords * 4);
-        stream.m_bitsProcessed += numWords * 32;
-        stream.m_wordIndex += numWords;
-        stream.m_scratchBits = 0;
+        assert((stream->bits_processed % 32) == 0);
+        memcpy(data + headBytes, &stream->data[stream->word_index], numWords * 4);
+        stream->bits_processed += numWords * 32;
+        stream->word_index += numWords;
+        stream->scratch_bits = 0;
     }
 
     assert(GetAlignBits(stream) == 0);
@@ -415,24 +327,24 @@ void ReadBytes(Stream& stream, uint8_t* data, int bytes)
     int tailBytes = bytes - tailStart;
     assert(tailBytes >= 0 && tailBytes < 4);
     for (int i = 0; i < tailBytes; ++i)
-        data[tailStart + i] = (uint8_t)ReadBits(stream, 8);
+        data[tailStart + i] = (uint8_t)r_stream_read_bits(stream, 8);
 
     assert(GetAlignBits(stream) == 0);
 
     assert(headBytes + numWords * 4 + tailBytes == bytes);
 }
 
-void WriteBytes(Stream& stream, const uint8_t* data, int bytes)
+void WriteBytes(Stream* stream, const uint8_t* data, int bytes)
 {
     assert(GetAlignBits(stream) == 0);
-    assert(stream.m_bitsProcessed + bytes * 8 <= stream.m_numBits);
-    assert((stream.m_bitsProcessed % 32) == 0 || (stream.m_bitsProcessed % 32) == 8 || (stream.m_bitsProcessed % 32) == 16 || (stream.m_bitsProcessed % 32) == 24);
+    assert(stream->bits_processed + bytes * 8 <= stream->num_bits);
+    assert((stream->bits_processed % 32) == 0 || (stream->bits_processed % 32) == 8 || (stream->bits_processed % 32) == 16 || (stream->bits_processed % 32) == 24);
 
-    int headBytes = (4 - (stream.m_bitsProcessed % 32) / 8) % 4;
+    int headBytes = (4 - (stream->bits_processed % 32) / 8) % 4;
     if (headBytes > bytes)
         headBytes = bytes;
     for (int i = 0; i < headBytes; ++i)
-        WriteBits(stream, data[i], 8);
+        r_stream_write_bits(stream, data[i], 8);
     if (headBytes == bytes)
         return;
 
@@ -442,11 +354,11 @@ void WriteBytes(Stream& stream, const uint8_t* data, int bytes)
 
     int numWords = (bytes - headBytes) / 4;
     if (numWords > 0) {
-        assert((stream.m_bitsProcessed % 32) == 0);
-        memcpy(&stream.m_data[stream.m_wordIndex], data + headBytes, numWords * 4);
-        stream.m_bitsProcessed += numWords * 32;
-        stream.m_wordIndex += numWords;
-        stream.m_scratch = 0;
+        assert((stream->bits_processed % 32) == 0);
+        memcpy(&stream->data[stream->word_index], data + headBytes, numWords * 4);
+        stream->bits_processed += numWords * 32;
+        stream->word_index += numWords;
+        stream->scratch = 0;
     }
 
     assert(GetAlignBits(stream) == 0);
@@ -455,7 +367,7 @@ void WriteBytes(Stream& stream, const uint8_t* data, int bytes)
     int tailBytes = bytes - tailStart;
     assert(tailBytes >= 0 && tailBytes < 4);
     for (int i = 0; i < tailBytes; ++i)
-        WriteBits(stream, data[tailStart + i], 8);
+        r_stream_write_bits(stream, data[tailStart + i], 8);
 
     assert(GetAlignBits(stream) == 0);
 
@@ -463,9 +375,9 @@ void WriteBytes(Stream& stream, const uint8_t* data, int bytes)
 }
 
 
-bool SerializeBytes(Stream& stream, uint8_t* data, int bytes)
+bool SerializeBytes(Stream* stream, uint8_t* data, int bytes)
 {
-    if (stream.type == WRITE) {
+    if (stream->type == WRITE) {
         assert(data);
         assert(bytes >= 0);
         if (!SerializeAlign(stream))
@@ -474,20 +386,20 @@ bool SerializeBytes(Stream& stream, uint8_t* data, int bytes)
         return true;
     }
 
-    if (stream.type == READ) {
+    if (stream->type == READ) {
         if (!SerializeAlign(stream))
             return false;
-        if (WouldOverflow(stream, bytes * 8)) {
+        if (WouldOverflow(*stream, bytes * 8)) {
             return false;
         }
         ReadBytes(stream, data, bytes);
-        stream.m_bitsProcessed += bytes * 8;
+        stream->bits_processed += bytes * 8;
         return true;
     }
 }
 
 
-bool serialize_bytes_internal(Stream& stream, uint8_t* data, int bytes)
+bool serialize_bytes_internal(Stream* stream, uint8_t* data, int bytes)
 {
     return SerializeBytes(stream, data, bytes);
 }
@@ -499,37 +411,40 @@ bool serialize_bytes_internal(Stream& stream, uint8_t* data, int bytes)
     } while (0)
 
 
-bool serialize_uint64_internal(Stream& stream, uint64_t& value)
+bool serialize_uint64_internal(Stream* stream, uint64_t& value)
 {
     uint32_t hi, lo;
-    if (stream.type == WRITE) {
+    if (stream->type == WRITE) {
         lo = value & 0xFFFFFFFF;
         hi = value >> 32;
     }
 
-    serialize_bits(stream, lo, 32);
-    serialize_bits(stream, hi, 32);
+    r_serialize_bits(stream, &lo, 32);
+    r_serialize_bits(stream, &hi, 32);
 
-    if (stream.type == READ)
+    if (stream->type == READ)
         value = (uint64_t(hi) << 32) | lo;
     return true;
 }
 
-#define serialize_uint64(stream, value)                \
-    do {                                               \
-        if (!serialize_uint64_internal(stream, value)) \
-            return false;                              \
-    } while (0)
+bool serialize_uint64(Stream* stream, uint64_t& value)
+{
+    do {
+        if (!serialize_uint64_internal(stream, value))
+            return false;
+    } while (0);
+}
+    
 
 
-#define serialize_enum(stream, value, enum_type, num_entries)        \
-    do {                                                        \
-        uint32_t int_value;                                     \
-        if (stream.type == WRITE)                              \
-            int_value = value;                                  \
-        serialize_int(stream, int_value, 0, num_entries - 1);   \
-        if (stream.type == READ)                               \
-            value = (enum_type)value;                                \
+#define serialize_enum(stream, value, enum_type, num_entries)           \
+    do {                                                                \
+        int32_t int_value;                                              \
+        if (stream->type == WRITE)                                       \
+            int_value = value;                                          \
+        r_serialize_int(stream, &int_value, 0, num_entries - 1);        \
+        if (stream->type == READ)                                        \
+            value = (enum_type)value;                                   \
     } while (0) 
 
 
